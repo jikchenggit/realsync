@@ -944,6 +944,7 @@ software_install()
 #      mv $REALSYNC_BASE/mass/bin/x_monitor.* $REALSYNC_BASE/mass/bin/x_monitor
 #  else
       cp -r RealSync/bin/$OS/$ORACLE_NO/* $REALSYNC_BASE/mass/bin
+      cp -r RealSync/lib/$OS/$ORACLE_NO/* $REALSYNC_BASE/elib
 #  fi
 
 ############################################auto unzip######################################
@@ -952,6 +953,17 @@ software_install()
   tar -xf $REALSYNC_BASE/mass/bin/*.tar
   rm -rf $REALSYNC_BASE/mass/bin/*.tar
   cd -
+  if [ $OS="Linux" -a  $ORACLE_NO="11" ]
+  then
+  cd $REALSYNC_BASE/elib
+  unzip *.zip
+  rm -rf *.zip
+  mv instantclient_11_2*/* .
+  rm -rf instantclient-basic-linux*
+  cp libnnz11.so libnnz.so
+  cp libclntsh.so.11.1 libclntsh.so
+  cd -
+  fi
 ##############################################################################################
   chmod u+x $REALSYNC_BASE/mass/bin/*
   chmod u+x $REALSYNC_BASE/scripts/*
