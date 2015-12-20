@@ -705,13 +705,13 @@ register_system()
   
   if [ -d "$ORACLE_HOME/lib32" ]
   then
-    export LD_LIBRARY_PATH=$ORACLE_HOME/lib32
-    export LIBPATH=$ORACLE_HOME/lib32
-    export SHLIB_PATH=$ORACLE_HOME/lib32
+    export LD_LIBRARY_PATH=$ORACLE_HOME/lib32:$REALSYNC_BASE/elib
+    export LIBPATH=$ORACLE_HOME/lib32:$REALSYNC_BASE/elib
+    export SHLIB_PATH=$ORACLE_HOME/lib32:$REALSYNC_BASE/elib
   else
-    export LD_LIBRARY_PATH=$ORACLE_HOME/lib
-    export LIBPATH=$ORACLE_HOME/lib
-    export SHLIB_PATH=$ORACLE_HOME/lib
+    export LD_LIBRARY_PATH=$ORACLE_HOME/lib:$REALSYNC_BASE/elib
+    export LIBPATH=$ORACLE_HOME/lib:$REALSYNC_BASE/elib
+    export SHLIB_PATH=$ORACLE_HOME/lib:$REALSYNC_BASE/elib
   fi
   
   #COMMON INFORMATION
