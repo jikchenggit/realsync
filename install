@@ -149,13 +149,15 @@ do
   echo    "     2 AIX5L"
   echo    "     3 HP11.11"
   echo    "     4 HP11.23"
-  echo    "     5 Linux"
-  echo    "     6 SunOS5.8"
-  echo    "     7 SunOS5.10"
+  echo    "     5 HP11.31"
+  echo    "     6 Linux"
+  echo    "     7 SunOS5.8"
+  echo    "     8 SunOS5.10"
   read CHOOSE_SYSTEM?"     please input your choice (1/2/3/4/5/6/7):"
   
   while [ "$CHOOSE_SYSTEM" != "1" -a "$CHOOSE_SYSTEM" != "2" -a "$CHOOSE_SYSTEM" != "3" -a \
-          "$CHOOSE_SYSTEM" != "4" -a "$CHOOSE_SYSTEM" != "5" -a "$CHOOSE_SYSTEM" != "6" -a "$CHOOSE_SYSTEM" != "7" ]
+          "$CHOOSE_SYSTEM" != "4" -a "$CHOOSE_SYSTEM" != "5" -a "$CHOOSE_SYSTEM" != "6" -a \
+          "$CHOOSE_SYSTEM" != "7" -a "$CHOOSE_SYSTEM" != "8"]
   do
     read CHOOSE_SYSTEM?"     please input your choice (1/2/3/4/5/6/7):"
   done
@@ -178,9 +180,10 @@ do
   2)OS="AIX5L";;
   3)OS="HP11.11";;
   4)OS="HP11.23";;
-  5)OS="Linux";;
-  6)OS="SunOS5.8";;
-  7)OS="SunOS5.10";;
+  5)OS="HP11.31";;
+  6)OS="Linux";;
+  7)OS="SunOS5.8";;
+  8)OS="SunOS5.10";;
   esac
   
   case "$ORACLE_VERSION" in
