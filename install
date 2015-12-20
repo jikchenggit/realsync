@@ -862,6 +862,9 @@ software_install()
   mkdir $REALSYNC_BASE/scripts
   mkdir $REALSYNC_BASE/bin
   mkdir $REALSYNC_BASE/bin/elib
+###################手动安装elib###################################################
+  mkdir $REALSYNC_BASE/elib
+#######################手动安装elib#################################################
   mkdir $REALSYNC_BASE/dbps
   mkdir $REALSYNC_BASE/config
   mkdir $REALSYNC_BASE/vcfs
@@ -942,7 +945,12 @@ software_install()
 #  else
       cp -r RealSync/bin/$OS/$ORACLE_NO/* $REALSYNC_BASE/mass/bin
 #  fi
-  
+
+############################################auto unzip######################################
+  gunzip $REALSYNC_BASE/mass/bin/*.tar.gz
+  tar -xvf $REALSYNC_BASE/mass/bin/*.tar
+  rm -rf $REALSYNC_BASE/mass/bin/*.tar
+##############################################################################################
   chmod u+x $REALSYNC_BASE/mass/bin/*
   chmod u+x $REALSYNC_BASE/scripts/*
   
