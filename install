@@ -107,7 +107,7 @@ then
        echo "alias 'cdc=cd \${REALSYNC_BASE}/config';" >> $HOME/.bash_profile
        echo "alias 'cdva=cd \${REALSYNC_BASE}/vcfsa';" >> $HOME/.bash_profile
        echo "alias 'cdx=cd \${REALSYNC_BASE}/xldr';" >> $HOME/.bash_profile
-       . $HOME/.bash_profile
+       source $HOME/.bash_profile
    fi
 else
    echo "export REALSYNC_BASE=$REALSYNC_BASE"
@@ -953,6 +953,7 @@ software_install()
   tar -xf $REALSYNC_BASE/mass/bin/*.tar
   rm -rf $REALSYNC_BASE/mass/bin/*.tar
   cd -
+#############################################unzip elib ##########################################
   if [ $OS="Linux" -a  $ORACLE_NO="11" ]
   then
   cd $REALSYNC_BASE/elib

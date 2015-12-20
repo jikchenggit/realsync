@@ -35,7 +35,7 @@ then
   exit
 fi
 
-
+#####################################################################################
 if [ "$1" = "all" -o "$1" = "ALL" ]
 then
   for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
