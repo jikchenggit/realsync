@@ -153,7 +153,7 @@ do
   echo    "     6 Linux"
   echo    "     7 SunOS5.8"
   echo    "     8 SunOS5.10"
-  read CHOOSE_SYSTEM?"     please input your choice (1/2/3/4/5/6/7):"
+  read CHOOSE_SYSTEM?"     please input your choice (1/2/3/4/5/6/7/8):"
   
   while [ "$CHOOSE_SYSTEM" != "1" -a "$CHOOSE_SYSTEM" != "2" -a "$CHOOSE_SYSTEM" != "3" -a \
           "$CHOOSE_SYSTEM" != "4" -a "$CHOOSE_SYSTEM" != "5" -a "$CHOOSE_SYSTEM" != "6" -a \
