@@ -107,7 +107,7 @@ then
        echo "alias 'cdc=cd \${REALSYNC_BASE}/config';" >> $HOME/.bash_profile
        echo "alias 'cdva=cd \${REALSYNC_BASE}/vcfsa';" >> $HOME/.bash_profile
        echo "alias 'cdx=cd \${REALSYNC_BASE}/xldr';" >> $HOME/.bash_profile
-       source ~/.bash_profile
+       . $HOME/.bash_profile
    fi
 else
    echo "export REALSYNC_BASE=$REALSYNC_BASE"
@@ -157,7 +157,7 @@ do
   
   while [ "$CHOOSE_SYSTEM" != "1" -a "$CHOOSE_SYSTEM" != "2" -a "$CHOOSE_SYSTEM" != "3" -a \
           "$CHOOSE_SYSTEM" != "4" -a "$CHOOSE_SYSTEM" != "5" -a "$CHOOSE_SYSTEM" != "6" -a \
-          "$CHOOSE_SYSTEM" != "7" -a "$CHOOSE_SYSTEM" != "8"]
+          "$CHOOSE_SYSTEM" != "7" -a "$CHOOSE_SYSTEM" != "8" ]
   do
     read CHOOSE_SYSTEM?"     please input your choice (1/2/3/4/5/6/7):"
   done
@@ -947,12 +947,15 @@ software_install()
 #  fi
 
 ############################################auto unzip######################################
-  gunzip $REALSYNC_BASE/mass/bin/*.tar.gz
-  tar -xvf $REALSYNC_BASE/mass/bin/*.tar
+  cd $REALSYNC_BASE/mass/bin
+  gunzip $REALSYNC_BASE/mass/bin/*.tar.gz 
+  tar -xf $REALSYNC_BASE/mass/bin/*.tar
   rm -rf $REALSYNC_BASE/mass/bin/*.tar
+  cd -
 ##############################################################################################
   chmod u+x $REALSYNC_BASE/mass/bin/*
   chmod u+x $REALSYNC_BASE/scripts/*
+  echo "RealSync is installed mass Successfully!"
   
 }
 
