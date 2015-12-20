@@ -92,6 +92,11 @@ then
        echo "alias 'l=ls -al';" >> $HOME/.bash_profile
        echo "export PS1=[\`hostname\`]\":\"'[\$PWD]$ ';" >> $HOME/.bash_profile
        echo "export REALSYNC_BASE=$REALSYNC_BASE;" >> $HOME/.bash_profile
+###################config elib################################################################################
+       echo "export LD_LIBRARY_PATH=$REALSYNC_BASE/elib:$ORACLE_HOME/lib:$D_LIBRARY_PATH;" >> $HOME/.bash_profile
+       echo "export LIBPATH=$REALSYNC_BASE/elib:$ORACLE_HOME/lib:$LIBPATH;" >> $HOME/.bash_profile
+       echo "export SHLIB_PATH=$REALSYNC_BASE/elib:$ORACLE_HOME/lib:$SHLIB_PATH;" >> $HOME/.bash_profile
+###################config elib################################################################################
        echo "cd \${REALSYNC_BASE};" >> $HOME/.bash_profile
        echo "alias 'cdl=cd \${REALSYNC_BASE}/log';" >> $HOME/.bash_profile
        echo "alias 'cds=cd \${REALSYNC_BASE}/scripts';" >> $HOME/.bash_profile
@@ -102,6 +107,7 @@ then
        echo "alias 'cdc=cd \${REALSYNC_BASE}/config';" >> $HOME/.bash_profile
        echo "alias 'cdva=cd \${REALSYNC_BASE}/vcfsa';" >> $HOME/.bash_profile
        echo "alias 'cdx=cd \${REALSYNC_BASE}/xldr';" >> $HOME/.bash_profile
+       source ~/.bash_profile
    fi
 else
    echo "export REALSYNC_BASE=$REALSYNC_BASE"
@@ -114,6 +120,11 @@ else
        echo "alias 'l=ls -al';" >> $HOME/.profile
        echo "export PS1=[\`hostname\`]\":\"'[\$PWD]$ ';" >> $HOME/.profile
        echo "export REALSYNC_BASE=$REALSYNC_BASE;" >> $HOME/.profile
+###################config elib#######################################################################################
+       echo "export LD_LIBRARY_PATH=$REALSYNC_BASE/elib:$ORACLE_HOME/lib:$D_LIBRARY_PATH;" >> $HOME/.bash_profile
+       echo "export LIBPATH=$REALSYNC_BASE/elib:$ORACLE_HOME/lib:$LIBPATH;" >> $HOME/.bash_profile
+       echo "export SHLIB_PATH=$REALSYNC_BASE/elib:$ORACLE_HOME/lib:$SHLIB_PATH;" >> $HOME/.bash_profile
+###################config elib#######################################################################################
        echo "cd \${REALSYNC_BASE};" >> $HOME/.profile
        echo "alias 'cdl=cd \${REALSYNC_BASE}/log';" >> $HOME/.profile
        echo "alias 'cds=cd \${REALSYNC_BASE}/scripts';" >> $HOME/.profile
@@ -124,6 +135,7 @@ else
        echo "alias 'cdc=cd \${REALSYNC_BASE}/config';" >> $HOME/.profile
        echo "alias 'cdva=cd \${REALSYNC_BASE}/vcfsa';" >> $HOME/.profile
        echo "alias 'cdx=cd \${REALSYNC_BASE}/xldr';" >> $HOME/.profile
+       . $HOME/.profile
    fi 
 fi
 export REALSYNC_BASE
