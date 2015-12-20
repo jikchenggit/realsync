@@ -1,0 +1,175 @@
+#!/bin/ksh
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+  cd ..
+  REALSYNC_BASE=`pwd`
+fi
+
+if [ -d "$ORACLE_HOME/lib32" ]
+then
+  export LD_LIBRARY_PATH=$ORACLE_HOME/lib32
+  export LIBPATH=$ORACLE_HOME/lib32
+  export SHLIB_PATH=$ORACLE_HOME/lib32
+else
+  export LD_LIBRARY_PATH=$ORACLE_HOME/lib
+  export LIBPATH=$ORACLE_HOME/lib
+  export SHLIB_PATH=$ORACLE_HOME/lib
+fi
+
+#COMMON INFORMATION
+SERVICENAME=`grep -w "$1" ${REALSYNC_BASE}/config.srv`
+if [ -z "$SERVICENAME" ]
+then
+  echo "Warning: SERVICE_NAME $1 not found in ${REALSYNC_BASE}/config.srv."
+  echo "SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                  $i"
+  done
+  exit
+fi
+
+Usage()
+{
+  echo "    ************************************************************************************"
+  echo "    USAGE : register SERVICE_NAME"
+  echo "            SERVICE_NAME: Please refer to $REALSYNC_BASE/config.srv"
+  echo "                                          "
+  echo "       SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                         $i"
+  done 
+  echo "    ************************************************************************************"
+}
+ 
+if [ $# -ne 1 ]
+then
+  Usage
+  exit
+fi  
+
+SYSTEM_ROLE=`grep -w "$1" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+
+if [ "$SYSTEM_ROLE" = "TGT" ]
+then
+    echo "no system register!"
+    echo "Please start register on Source host."
+    exit  
+fi
+
+SVR_IP=`grep REALSYNC_SVR_IP ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+SVR_PORT=`grep "$1 " ${REALSYNC_BASE}/config.srv | awk '{print $2}'`
+VMANLOGON=`grep VMANLOGON ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+
+#SOURCE INFORMATION
+SOURCE_HOST_IP=`grep SOURCE_HOST_IP ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+SOURCE_AGENT_PORT=`grep -w "$1" ${REALSYNC_BASE}/config.srv | awk '{print $3}'`
+SOURCE_DB_USER=`grep SOURCE_DB_USER ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+SOURCE_DB_PSWD=`grep SOURCE_DB_PSWD ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+SOURCE_ORACLE_SID=`grep SOURCE_ORACLE_SID ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+SOURCE_ORACLE_HOME=`grep SOURCE_ORACLE_HOME ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+#SOURCE_CONTROL_FILE=`grep SOURCE_CONTROL_FILE ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+
+#TARGET INFORMATION
+TARGET_HOST_IP=`grep TARGET_HOST_IP ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+TARGET_AGENT_PORT=`grep -w "$1" ${REALSYNC_BASE}/config.srv | awk '{print $3}'`
+TARGET_DB_USER=`grep TARGET_DB_USER ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+TARGET_DB_PSWD=`grep TARGET_DB_PSWD ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+TARGET_ORACLE_SID=`grep TARGET_ORACLE_SID ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+TARGET_ORACLE_HOME=`grep TARGET_ORACLE_HOME ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+
+echo "Starting register Source Host and Database${REALSYNC_BASE}."
+cd ${REALSYNC_BASE}/bin/$1
+./vman <<EOF
+connect ${SVR_IP}:${SVR_PORT}
+user ${VMANLOGON}
+menu
+1
+2
+3
+1
+${SOURCE_HOST_IP}
+${SOURCE_AGENT_PORT}
+
+q
+4
+3
+1
+1
+${SOURCE_HOST_IP}
+SRCDB
+${SOURCE_DB_USER}
+${SOURCE_DB_PSWD}
+
+
+${SOURCE_ORACLE_SID}
+
+${SOURCE_ORACLE_HOME}
+
+q
+q
+q
+cd dbs
+cd SRCDB.1
+cd schemas
+ls
+exit
+EOF
+sleep 1
+echo "Source Host and Database Registered."
+sleep 1
+
+echo "Starting Register Target Host and Database${REALSYNC_BASE}."
+sleep 1
+cd ${REALSYNC_BASE}/bin/$1
+./vman <<EOF
+connect ${SVR_IP}:${SVR_PORT}
+user ${VMANLOGON}
+menu
+1
+2
+3
+2
+${TARGET_HOST_IP}
+${TARGET_AGENT_PORT}
+
+q
+4
+3
+2
+1
+${TARGET_HOST_IP}
+TGTDB
+${TARGET_DB_USER}
+${TARGET_DB_PSWD}
+
+
+${TARGET_ORACLE_SID}
+
+${TARGET_ORACLE_HOME}
+
+q
+q
+q
+cd dbs
+cd TGTDB.2
+cd schemas
+ls
+exit
+EOF
+sleep 1
+echo "Target Host and Database Registered."
+sleep 1
+
+echo "Creating Replication Configuration File Template${REALSYNC_BASE}."
+#echo "set ds 1 -ctf ${SOURCE_CONTROL_FILE} -itvl 5 -state start" > ${REALSYNC_BASE}/config/$1/dsdt.vm
+echo "set ds 1 -itvl 5 -state start" > ${REALSYNC_BASE}/config/$1/dsdt.vm
+echo "set dt 1.1 -tgt db 2 -xf1 y -state start" >> ${REALSYNC_BASE}/config/$1/dsdt.vm
+echo "#FOR EXAMPLE:" > ${REALSYNC_BASE}/config/$1/config.vm
+echo "#set dm 1.1 BILL.TABLE SAM.TABLE -sync ftciq -rule r" >> ${REALSYNC_BASE}/config/$1/config.vm
+echo "#set dm 1.1 -cfg -sync ftcIq -rule r" >> ${REALSYNC_BASE}/config/$1/config.vm
+sleep 1
+echo "Replication Configuration File Template Created."
+echo `date`

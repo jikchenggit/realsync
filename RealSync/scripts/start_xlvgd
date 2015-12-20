@@ -1,0 +1,23 @@
+#!/bin/ksh
+
+
+if [ -d "$ORACLE_HOME/lib32" ]
+then
+  export LD_LIBRARY_PATH=$ORACLE_HOME/lib32
+  export LIBPATH=$ORACLE_HOME/lib32
+  export SHLIB_PATH=$ORACLE_HOME/lib32
+else
+  export LD_LIBRARY_PATH=$ORACLE_HOME/lib
+  export LIBPATH=$ORACLE_HOME/lib
+  export SHLIB_PATH=$ORACLE_HOME/lib
+fi
+
+export LD_LIBRARY_PATH=/oracle11/dsg/realsync/bin/elib/11gr2lib
+export DBPS_HOME=/oracle11/dsg/realsync/bin/zjws/arch_xlvgd
+export XLVG_HOME=/oracle11/dsg/realsync/bin/zjws/arch_xlvgd
+export ASM_CONF_FILENAME=/oracle11/dsg/realsync/bin/zjws/arch_xlvgd/config/asm.conf
+
+#nohup /oracle11/dsg/realsync/bin/zjws/aor -parfile /oracle11/dsg/realsync/bin/zjws/aor.ini >> /oracle11/dsg/realsync/bin/zjws/aor.log  &
+nohup /oracle11/dsg/realsync/bin/zjws/xlvgd 7816 >> /oracle11/dsg/realsync/bin/zjws/xlvgd.log &
+
+

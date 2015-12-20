@@ -1,0 +1,40 @@
+#!/bin/ksh
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+  cd ..
+  REALSYNC_BASE=`pwd`
+fi
+
+SERVICE_NAME=$1
+OXAD_IP=127.0.0.1
+OXAD_PORT=`cat $REALSYNC_BASE/config.srv |grep -v grep |grep "$SERVICE_NAME" |awk '{print $6}'`
+
+start_oxad()
+{
+  export DBPS_HOME=$REALSYNC_BASE/dbps/$SERVICE_NAME
+  cd $REALSYNC_BASE/bin/$SERVICE_NAME
+  ./oxad -startup -n $OXAD_IP:$OXAD_PORT -blen 30M
+  sleep 1
+
+  pid=`ps -ef |grep oxad |grep -v grep |grep $OXAD_PORT | awk '{print $2}'`
+  if [ ! -z $pid ]
+  then
+      echo "Oxad with port $OXAD_PORT Started."
+      ps -ef |grep oxad |grep -v grep |grep $OXAD_PORT
+  fi
+}
+
+OPTION="oxad"
+
+if [ "$OPTION" = "oxad" ]
+then
+    pid_oxad=`ps -ef |grep oxad |grep -v grep |grep $OXAD_PORT |wc -l`
+    if [ $pid_oxad -ge 1 ]
+    then
+        echo "INFORMANTION: another oxad with port $OXAD_PORT is running."
+        exit
+    fi
+
+    start_oxad
+fi

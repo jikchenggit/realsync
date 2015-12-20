@@ -1,0 +1,740 @@
+#!/bin/ksh
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+  cd ..
+  REALSYNC_BASE=`pwd`
+fi
+
+######################################SOURCE_CONFIGURE######################################
+src_config()
+{
+  echo ""
+  echo "********************Configure Source ServiceName $S_NAME********************"
+  while true
+  do
+    read SOURCE_IP?"Please input RealSync Source IP:"
+    while true
+    do
+      if [ -z "$SOURCE_IP" ]
+      then
+          read SOURCE_IP?"Please input RealSync Source IP:"
+          continue
+      fi
+      SOURCE_IP_T=`[[ $SOURCE_IP = *[!0-9.]* ]] && echo string || echo digit`
+      if [ "$SOURCE_IP_T" = "string" ]
+      then
+          read SOURCE_IP?"Invalid IP,Please reinput RealSync Source IP:"
+      else
+          break
+      fi
+    done
+
+    if [ ! -z "$ORACLE_SID" ]
+    then
+       read S_ORACLE_SID?"Please input RealSync Source ORACLE_SID : [$ORACLE_SID]"
+       if [ -z "$S_ORACLE_SID" ]
+       then
+       		S_ORACLE_SID="$ORACLE_SID"
+       fi
+    else
+       read S_ORACLE_SID?"Please input RealSync Source ORACLE_SID :"
+       while [ -z "$S_ORACLE_SID" ]
+       do
+       	read S_ORACLE_SID?"Please input RealSync Source ORACLE_SID :"
+       done
+    fi
+
+    if [ ! -z "$ORACLE_HOME" ]
+    then
+        read S_ORACLE_HOME?"Please input RealSync Source ORACLE_HOME : [$ORACLE_HOME]"
+        if [ -z "$S_ORACLE_HOME" ]
+        then
+        		S_ORACLE_HOME="$ORACLE_HOME"
+        fi
+    else
+        read S_ORACLE_HOME?"Please input RealSync Source ORACLE_HOME :"
+        while [ -z "$S_ORACLE_HOME" ]
+        do
+          read S_ORACLE_HOME?"Please input RealSync Source ORACLE_HOME :"
+        done
+    fi
+
+    read S_DB_USER?"Please input RealSync Source DB user : [dsg]"
+    if [ -z "$S_DB_USER" ]
+    then
+    		S_DB_USER="dsg"
+    fi
+
+    read S_DB_PSWD?"Please input RealSync Source DB user password : [dsg]"
+    if [ -z "$S_DB_PSWD" ]
+    then
+    		S_DB_PSWD="dsg"
+    fi
+
+#    read S_CONTROL_FILE?"Please input RealSync Source DB control file :"
+#    while [ -z "$S_CONTROL_FILE" ]
+#    do
+#      read S_CONTROL_FILE?"Please input RealSync Source DB control file :"
+#    done
+
+    echo " "
+
+    read TARGET_IP?"Please input RealSync Target IP:"
+    while true
+    do
+      if [ -z "$TARGET_IP" ]
+      then
+          read TARGET_IP?"Please input RealSync Target IP:"
+          continue
+      fi
+      TARGET_IP_T=`[[ $TARGET_IP = *[!0-9.]* ]] && echo string || echo digit`
+      if [ "$TARGET_IP_T" = "string" ]
+      then
+          read TARGET_IP?"Invalid IP,Please reinput RealSync Target IP:"
+      else
+          break
+      fi
+    done
+
+    read T_ORACLE_SID?"Please input RealSync Target ORACLE_SID :"
+    while [ -z "$T_ORACLE_SID" ]
+    do
+      read T_ORACLE_SID?"Please input RealSync Target ORACLE_SID :"
+    done
+
+    read T_ORACLE_HOME?"Please input RealSync Target ORACLE_HOME :"
+    while [ -z "$T_ORACLE_HOME" ]
+    do
+      read T_ORACLE_HOME?"Please input RealSync Target ORACLE_HOME :"
+    done
+
+    read T_DB_USER?"Please input RealSync Target DB user : [dsg]"
+    if [ -z "$T_DB_USER" ]
+    then
+    		T_DB_USER="dsg"
+    fi
+
+    read T_DB_PSWD?"Please input RealSync Target DB user password : [dsg]"
+    if [ -z "$T_DB_PSWD" ]
+    then
+    		T_DB_PSWD="dsg"
+    fi
+
+    echo " "
+    echo "Your input list:"
+    echo "     Source IP          :$SOURCE_IP"
+    echo "     Source ORACLE_SID  :$S_ORACLE_SID"
+    echo "     Source ORACLE_HOME :$S_ORACLE_HOME"
+    echo "     Source DB USER     :$S_DB_USER"
+    echo "     Source DB USER PWD :$S_DB_PSWD"
+#    echo "     Source Control File:$S_CONTROL_FILE"
+    echo "      "
+    echo "     Target IP          :$TARGET_IP"
+    echo "     Target ORACLE_SID  :$T_ORACLE_SID"
+    echo "     Target ORACLE_HOME :$T_ORACLE_HOME"
+    echo "     Target DB USER     :$T_DB_USER"
+    echo "     Target DB USER PWD :$T_DB_PSWD"
+    echo "      "
+    read CONFIG_QUE?"Do you input is yes or no (Y/N):"
+    while [ "$CONFIG_QUE" != "Y" -a "$CONFIG_QUE" != "y" -a "$CONFIG_QUE" != "N" -a "$CONFIG_QUE" != "n" ]
+    do
+    	read CONFIG_QUE?"Do you input is yes or no (Y/N):"
+    done
+
+    if [ "$CONFIG_QUE" = "Y" -o "$CONFIG_QUE" = "y" ]
+    then
+    	 break
+    else
+       echo " "
+       echo "Input Again......"
+    fi
+
+  done
+
+    echo "#COMMON INFORMATION" > $REALSYNC_BASE/config/$S_NAME/config.dsg
+    echo "REALSYNC_BASE=$REALSYNC_BASE" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+    echo "REALSYNC_SVR_IP=$SOURCE_IP" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+    echo "VMANLOGON=root/dbps" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+
+    echo " " >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+
+    echo "#SOURCE INFORMATION" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+    echo "SOURCE_HOST_IP=$SOURCE_IP" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+    echo "SOURCE_ORACLE_SID=$S_ORACLE_SID" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+    echo "SOURCE_ORACLE_HOME=$S_ORACLE_HOME" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+    echo "SOURCE_DB_USER=$S_DB_USER" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+    echo "SOURCE_DB_PSWD=$S_DB_PSWD" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+#    echo "SOURCE_CONTROL_FILE=$S_CONTROL_FILE" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+
+    echo " " >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+
+    echo "#TARGET INFORMATION" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+    echo "TARGET_HOST_IP=$TARGET_IP" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+    echo "TARGET_ORACLE_SID=$T_ORACLE_SID" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+    echo "TARGET_ORACLE_HOME=$T_ORACLE_HOME" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+    echo "TARGET_DB_USER=$T_DB_USER" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+    echo "TARGET_DB_PSWD=$T_DB_PSWD" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+
+    echo "RealSync Source configure finished!"
+}
+
+######################################TARGET_CONFIGURE######################################
+tgt_config()
+{
+  echo ""
+  echo "********************Configure Target ServiceName $S_NAME********************"
+  while true
+  do
+    read TARGET_IP?"Please input RealSync Target IP:"
+    while true
+    do
+      if [ -z "$TARGET_IP" ]
+      then
+          read TARGET_IP?"Please input RealSync Target IP:"
+          continue
+      fi
+      TARGET_IP_T=`[[ $TARGET_IP = *[!0-9.]* ]] && echo string || echo digit`
+      if [ "$TARGET_IP_T" = "string" ]
+      then
+          read TARGET_IP?"Invalid IP,Please reinput RealSync Target IP:"
+      else
+          break
+      fi
+    done
+
+    if [ ! -z "$ORACLE_SID" ]
+    then
+       read T_ORACLE_SID?"Please input RealSync Target ORACLE_SID : [$ORACLE_SID]"
+       if [ -z "$T_ORACLE_SID" ]
+       then
+       		T_ORACLE_SID="$ORACLE_SID"
+       fi
+    else
+       read T_ORACLE_SID?"Please input RealSync Target ORACLE_SID :"
+       while [ -z "$T_ORACLE_SID" ]
+       do
+       	read T_ORACLE_SID?"Please input RealSync Target ORACLE_SID :"
+       done
+    fi
+
+    if [ ! -z "$ORACLE_HOME" ]
+    then
+       read T_ORACLE_HOME?"Please input RealSync Target ORACLE_HOME : [$ORACLE_HOME]"
+       if [ -z "$T_ORACLE_HOME" ]
+       then
+       		T_ORACLE_HOME="$ORACLE_HOME"
+       fi
+    else
+       read T_ORACLE_HOME?"Please input RealSync Target ORACLE_HOME :"
+       while [ -z "$T_ORACLE_HOME" ]
+       do
+         read T_ORACLE_HOME?"Please input RealSync Target ORACLE_HOME :"
+       done
+    fi
+
+    read T_DB_USER?"Please input RealSync Target DB user : [dsg]"
+    if [ -z "$T_DB_USER" ]
+    then
+    		T_DB_USER="dsg"
+    fi
+
+    read T_DB_PSWD?"Please input RealSync Target DB user password : [dsg]"
+    if [ -z "$T_DB_PSWD" ]
+    then
+    		T_DB_PSWD="dsg"
+    fi
+    read T_LOADER_PARALLEL?"Please input RealSync Target Loader Parallels (1-10) :[1]"
+    if [ -z "$T_LOADER_PARALLEL" ]
+    then
+    		T_LOADER_PARALLEL="1"
+    fi
+    while [ "$T_LOADER_PARALLEL" != "1" -a "$T_LOADER_PARALLEL" != "2" -a "$T_LOADER_PARALLEL" != "3" -a \
+            "$T_LOADER_PARALLEL" != "4" -a "$T_LOADER_PARALLEL" != "5" -a "$T_LOADER_PARALLEL" != "6" -a \
+            "$T_LOADER_PARALLEL" != "7" -a "$T_LOADER_PARALLEL" != "8" -a "$T_LOADER_PARALLEL" != "9" -a "$T_LOADER_PARALLEL" != "10" ]
+    do
+      read T_LOADER_PARALLEL?"Invalid input,Please input RealSync Target Loader Parallels (1-10) :[1]"
+    done
+    read R_LOADER_PARALLEL?"Please input RealSync Target Real Loader Parallels (1-5) :[1]"
+    if [ -z "$R_LOADER_PARALLEL" ]
+    then
+                R_LOADER_PARALLEL="1"
+    fi
+    while [ "$R_LOADER_PARALLEL" != "1" -a "$R_LOADER_PARALLEL" != "2" -a "$T_LOADER_PARALLEL" != "3" -a \
+            "$R_LOADER_PARALLEL" != "4" -a "$R_LOADER_PARALLEL" != "5" ]
+    do
+      read R_LOADER_PARALLEL?"Invalid input,Please input RealSync Target Real Loader Parallels (1-5) :[1]"
+    done
+
+    echo " "
+
+    read SOURCE_IP?"Please input RealSync Source IP:"
+    while true
+    do
+      if [ -z "$SOURCE_IP" ]
+      then
+          read SOURCE_IP?"Please input RealSync Source IP:"
+          continue
+      fi
+      SOURCE_IP_T=`[[ $SOURCE_IP = *[!0-9.]* ]] && echo string || echo digit`
+      if [ "$SOURCE_IP_T" = "string" ]
+      then
+          read SOURCE_IP?"Invalid IP,Please reinput RealSync Source IP:"
+      else
+          break
+      fi
+    done
+
+    read S_ORACLE_SID?"Please input RealSync Source ORACLE_SID :"
+    while [ -z "$S_ORACLE_SID" ]
+    do
+    	read S_ORACLE_SID?"Please input RealSync Source ORACLE_SID :"
+    done
+
+    echo " "
+    echo "Your input list:"
+    echo "     Target IP               :$TARGET_IP"
+    echo "     Target ORACLE_SID       :$T_ORACLE_SID"
+    echo "     Target ORACLE_HOME      :$T_ORACLE_HOME"
+    echo "     Target DB USER          :$T_DB_USER"
+    echo "     Target DB USER PWD      :$T_DB_PSWD"
+    echo "     Target Loader Parallels :$T_LOADER_PARALLEL"
+    echo "     Target Real Loader Parallels  :$R_LOADER_PARALLEL"
+    echo "      "
+    echo "     Source IP               :$SOURCE_IP"
+    echo "     Source ORACLE_SID       :$S_ORACLE_SID"
+    echo " "
+    read CONFIG_QUE?"Do you input is yes or no (Y/N):"
+    while [ "$CONFIG_QUE" != "Y" -a "$CONFIG_QUE" != "y" -a "$CONFIG_QUE" != "N" -a "$CONFIG_QUE" != "n" ]
+    do
+    	read CONFIG_QUE?"Do you input is yes or no (Y/N):"
+    done
+
+    if [ "$CONFIG_QUE" = "Y" -o "$CONFIG_QUE" = "y" ]
+    then
+    	 break
+    else
+       echo " "
+       echo "Input Again......"
+    fi
+
+  done
+
+    echo "#COMMON INFORMATION" > $REALSYNC_BASE/config/$S_NAME/config.dsg
+    echo "REALSYNC_BASE=$REALSYNC_BASE" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+    echo "REALSYNC_SVR_IP=$SOURCE_IP" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+    echo "VMANLOGON=root/dbps" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+
+    echo " " >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+
+    echo "#SOURCE INFORMATION" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+    echo "SOURCE_HOST_IP=$SOURCE_IP" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+    echo "SOURCE_ORACLE_SID=$S_ORACLE_SID" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+
+    echo " " >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+
+    echo "#TARGET INFORMATION" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+    echo "TARGET_HOST_IP=$TARGET_IP" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+    echo "TARGET_ORACLE_SID=$T_ORACLE_SID" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+    echo "TARGET_ORACLE_HOME=$T_ORACLE_HOME" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+    echo "TARGET_DB_USER=$T_DB_USER" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+    echo "TARGET_DB_PSWD=$T_DB_PSWD" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+    echo "LOADER_PARALLEL=$T_LOADER_PARALLEL" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+    echo "LOADER_R_PARALLEL=$R_LOADER_PARALLEL" >> $REALSYNC_BASE/config/$S_NAME/config.dsg
+
+    echo "#set dict 1.1 -owner DSG -rows n -triggers n -statistics none -map \"DSG DSG\" -file DSG" >> $REALSYNC_BASE/config/$S_NAME/dict.vm
+
+#    echo "select 'alter index \"'||owner||'\".\"'||index_name||'\" rebuild;' from dba_indexes " > $REALSYNC_BASE/config/$S_NAME/compile.sql
+#    echo "where owner in ('DSG') " >> $REALSYNC_BASE/config/$S_NAME/compile.sql
+#    echo "and status = 'UNUSABLE';" >> $REALSYNC_BASE/config/$S_NAME/compile.sql
+#    echo "" >> $REALSYNC_BASE/config/$S_NAME/compile.sql
+#    echo "select 'alter '||object_type||' \"'||owner||'\".\"'||object_name||'\" compile;' from dba_objects " >> $REALSYNC_BASE/config/$S_NAME/compile.sql
+#    echo "where owner in ('DSG')" >> $REALSYNC_BASE/config/$S_NAME/compile.sql
+#    echo "and status = 'INVALID' and object_type in ('PROCEDURE','FUNCTION','VIEW','PACKAGE','TRIGGER');" >> $REALSYNC_BASE/config/$S_NAME/compile.sql
+#    echo "" >> $REALSYNC_BASE/config/$S_NAME/compile.sql
+#    echo "select 'alter package \"'||owner||'\".\"'||object_name||'\" compile body;' from dba_objects " >> $REALSYNC_BASE/config/$S_NAME/compile.sql
+#    echo "where owner in ('DSG')" >> $REALSYNC_BASE/config/$S_NAME/compile.sql
+#    echo "and status = 'INVALID' and object_type in ('PACKAGE BODY');" >> $REALSYNC_BASE/config/$S_NAME/compile.sql
+
+    echo "RealSync Target configure finished!"
+}
+
+######################################ADD_SERVICENAME######################################
+add_servicename()
+{
+  echo " "
+  echo "Existed RealSync ServiceName List:"
+  cat $REALSYNC_BASE/config.srv
+  echo "Please don't input has exists ServiceName or Port Again!"
+  echo " "
+
+  while true
+  do
+    read S_NAME?"Please input service name: "
+    while true
+    do
+      if [ -z "$S_NAME" ]
+      then
+         read S_NAME?"Please input service name: "
+      	 continue
+      fi
+      SERVICENAME=`grep -w "$S_NAME" ${REALSYNC_BASE}/config.srv`
+      if [ ! -z "$SERVICENAME" ]
+      then
+          read S_NAME?"Sorry,The ServiceName has exists,Please reinput service name: "
+          continue
+      else
+          break
+      fi
+    done
+
+    read S_PORT?"Please input server port: "
+    while true
+    do
+      if [ -z "$S_PORT" ]
+      then
+          read S_PORT?"Please input server port: "
+          continue
+      fi
+      S_PORT_T=`[[ $S_PORT = *[!0-9]* ]] && echo string || echo digit`
+      if [ "$S_PORT_T" = "string" ]
+      then
+          read S_PORT?"Invalid port,Please reinput server port: "
+      else
+          TEMP_PORT=`grep -w "$S_PORT" ${REALSYNC_BASE}/config.srv`
+          if [ ! -z "$TEMP_PORT" ]
+          then
+              read S_PORT?"Sorry,The Port has exists,Please reinput server port: "
+              continue
+          else
+              break
+          fi
+      fi
+    done
+
+    read A_PORT?"Please input agent port: "
+    while true
+    do
+      if [ -z "$A_PORT" ]
+      then
+          read A_PORT?"Please input agent port: "
+          continue
+      fi
+      A_PORT_T=`[[ $A_PORT = *[!0-9]* ]] && echo string || echo digit`
+      if [ "$A_PORT_T" = "string" ]
+      then
+          read A_PORT?"Invalid port,Please reinput agent port: "
+      else
+          TEMP_PORT=`grep -w "$A_PORT" ${REALSYNC_BASE}/config.srv`
+          if [ ! -z "$TEMP_PORT" ]
+          then
+              read A_PORT?"Sorry,The Port has exists,Please reinput agent port: "
+              continue
+          else
+              break
+          fi
+      fi
+    done
+
+    read R_TYPE?"Please input role type(SRC/TGT): "
+    while [ "$R_TYPE" != "SRC" -a "$R_TYPE" != "TGT" -a "$R_TYPE" != "src" -a "$R_TYPE" != "tgt" ]
+    do
+      	read R_TYPE?"Please input role type(SRC/TGT): "
+    done
+
+    if [ "$R_TYPE" = "src" ]
+    then
+        R_TYPE="SRC"
+    fi
+
+    if [ "$R_TYPE" = "tgt" ]
+    then
+        R_TYPE="TGT"
+    fi
+
+    read M_PORT?"Please input monitor port: "
+    while true
+    do
+      if [ -z "$M_PORT" ]
+      then
+          read M_PORT?"Please input monitor port: "
+          continue
+      fi
+      M_PORT_T=`[[ $M_PORT = *[!0-9]* ]] && echo string || echo digit`
+      if [ "$M_PORT_T" = "string" ]
+      then
+          read M_PORT?"Invalid port,Please reinput monitor port: "
+      else
+          TEMP_PORT=`grep -w "$M_PORT" ${REALSYNC_BASE}/config.srv`
+          if [ ! -z "$TEMP_PORT" ]
+          then
+              read M_PORT?"Sorry,The Port has exists,Please reinput monitor port: "
+              continue
+          else
+              break
+          fi
+      fi
+    done
+
+    read V_PORT?"Please input verify port: "
+    while true
+    do
+      if [ -z "$V_PORT" ]
+      then
+          read V_PORT?"Please input verify port: "
+          continue
+      fi
+      V_PORT_T=`[[ $V_PORT = *[!0-9]* ]] && echo string || echo digit`
+      if [ "$V_PORT_T" = "string" ]
+      then
+          read V_PORT?"Invalid port,Please reinput verify port: "
+      else
+          TEMP_PORT=`grep -w "$V_PORT" ${REALSYNC_BASE}/config.srv`
+          if [ ! -z "$TEMP_PORT" ]
+          then
+              read V_PORT?"Sorry,The Port has exists,Please reinput verify port: "
+              continue
+          else
+              break
+          fi
+      fi
+    done
+    echo ""
+    echo "Your input list:"
+    echo "     ServiceName:  $S_NAME"
+    echo "     ServerPort:   $S_PORT"
+    echo "     AgentPort:    $A_PORT"
+    echo "     RoleType:     $R_TYPE"
+    echo "     MonitorPort:  $M_PORT"
+    echo "     VerifyPort:   $V_PORT"
+    read SERVICE_QUE?"Do you input is yes or no (Y/N):"
+    while [ "$SERVICE_QUE" != "Y" -a "$SERVICE_QUE" != "y" -a "$SERVICE_QUE" != "N" -a "$SERVICE_QUE" != "n" ]
+    do
+    	read SERVICE_QUE?"Do you input is yes or no (Y/N):"
+    done
+
+    if [ "$SERVICE_QUE" = "Y" -o "$SERVICE_QUE" = "y" ]
+    then
+       TOTEL=`grep "#ServiceName" ${REALSYNC_BASE}/config.srv` 
+       if [ -z "$TOTEL" ]
+       then
+          echo "#ServiceName ServerPort AgentPort RoleType MonitorPort VerifyPort" >> $REALSYNC_BASE/config.srv
+       fi
+       echo "$S_NAME   $S_PORT   $A_PORT   $R_TYPE   $M_PORT   $V_PORT " >> $REALSYNC_BASE/config.srv
+       cd $REALSYNC_BASE/scripts
+       ./initservice $S_NAME
+       break
+    else
+       echo " "
+       echo "Input Again......"
+    fi
+
+  done
+
+  echo "RealSync ServiceName add finished!"
+}
+
+######################################REGISTER_SYSTEM######################################
+register_system()
+{
+  if [ -z "${REALSYNC_BASE}" ]
+  then
+    cd ..
+    REALSYNC_BASE=`pwd`
+  fi
+  
+  if [ -d "$ORACLE_HOME/lib32" ]
+  then
+    export LD_LIBRARY_PATH=$ORACLE_HOME/lib32
+    export LIBPATH=$ORACLE_HOME/lib32
+    export SHLIB_PATH=$ORACLE_HOME/lib32
+  else
+    export LD_LIBRARY_PATH=$ORACLE_HOME/lib
+    export LIBPATH=$ORACLE_HOME/lib
+    export SHLIB_PATH=$ORACLE_HOME/lib
+  fi
+  
+  #COMMON INFORMATION
+  SERVICENAME=`grep -w "$1" ${REALSYNC_BASE}/config.srv`
+  if [ -z "$SERVICENAME" ]
+  then
+    echo "Service Name $1 not found."
+    exit
+  fi
+  
+  SVR_IP=`grep REALSYNC_SVR_IP ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+  SVR_PORT=`grep "$1 " ${REALSYNC_BASE}/config.srv | awk '{print $2}'`
+  VMANLOGON=`grep VMANLOGON ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+  
+  #SOURCE INFORMATION
+  SOURCE_HOST_IP=`grep SOURCE_HOST_IP ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+  SOURCE_AGENT_PORT=`grep -w "$1" ${REALSYNC_BASE}/config.srv | awk '{print $3}'`
+  SOURCE_DB_USER=`grep SOURCE_DB_USER ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+  SOURCE_DB_PSWD=`grep SOURCE_DB_PSWD ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+  SOURCE_ORACLE_SID=`grep SOURCE_ORACLE_SID ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+  SOURCE_ORACLE_HOME=`grep SOURCE_ORACLE_HOME ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+#  SOURCE_CONTROL_FILE=`grep SOURCE_CONTROL_FILE ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+  
+  #TARGET INFORMATION
+  TARGET_HOST_IP=`grep TARGET_HOST_IP ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+  TARGET_AGENT_PORT=`grep -w "$1" ${REALSYNC_BASE}/config.srv | awk '{print $3}'`
+  TARGET_DB_USER=`grep TARGET_DB_USER ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+  TARGET_DB_PSWD=`grep TARGET_DB_PSWD ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+  TARGET_ORACLE_SID=`grep TARGET_ORACLE_SID ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+  TARGET_ORACLE_HOME=`grep TARGET_ORACLE_HOME ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+  
+echo "Starting register Source Host and Database."
+cd ${REALSYNC_BASE}/bin/$1
+./vman <<EOF
+connect ${SVR_IP}:${SVR_PORT}
+user ${VMANLOGON}
+menu
+1
+2
+3
+1
+${SOURCE_HOST_IP}
+${SOURCE_AGENT_PORT}
+
+q
+4
+3
+1
+1
+${SOURCE_HOST_IP}
+SRCDB
+${SOURCE_DB_USER}
+${SOURCE_DB_PSWD}
+
+
+${SOURCE_ORACLE_SID}
+
+${SOURCE_ORACLE_HOME}
+
+q
+q
+q
+exit
+EOF
+sleep 1
+echo " "
+echo "Source Host and Database Registered."
+sleep 1
+
+echo " "
+echo "Starting Register Target Host and Database."
+sleep 1
+cd ${REALSYNC_BASE}/bin/$1
+./vman <<EOF
+connect ${SVR_IP}:${SVR_PORT}
+user ${VMANLOGON}
+menu
+1
+2
+3
+2
+${TARGET_HOST_IP}
+${TARGET_AGENT_PORT}
+
+q
+4
+3
+2
+1
+${TARGET_HOST_IP}
+TGTDB
+${TARGET_DB_USER}
+${TARGET_DB_PSWD}
+
+
+${TARGET_ORACLE_SID}
+
+${TARGET_ORACLE_HOME}
+
+q
+q
+q
+exit
+EOF
+sleep 1
+echo " "
+echo "Target Host and Database Registered."
+sleep 1
+
+echo " "
+echo "Register Infomition List:"
+cd ${REALSYNC_BASE}/bin/$1
+./vman <<EOF
+connect ${SVR_IP}:${SVR_PORT}
+user ${VMANLOGON}
+menu
+1
+2
+1
+
+q
+4
+1
+
+q
+q
+q
+exit
+EOF
+
+#echo "set ds 1 -ctf ${SOURCE_CONTROL_FILE} -itvl 5 -state start" > ${REALSYNC_BASE}/config/$1/dsdt.vm
+echo "set ds 1 -itvl 5 -state start" > ${REALSYNC_BASE}/config/$1/dsdt.vm
+echo "set dt 1.1 -tgt db 2 -xf1 y -state start" >> ${REALSYNC_BASE}/config/$1/dsdt.vm
+echo "#FOR EXAMPLE:" > ${REALSYNC_BASE}/config/$1/config.vm
+echo "#set dm 1.1 BILL.TABLE SAM.TABLE -sync ftciq -rule r" >> ${REALSYNC_BASE}/config/$1/config.vm
+echo "#set dm 1.1 -cfg -sync ftciq -rule r" >> ${REALSYNC_BASE}/config/$1/config.vm
+sleep 1
+echo ""
+echo "Systemp Register Successfully Finished!"
+echo `date`
+}
+
+read SERVICENAME_QUE?"Do you want add RealSync service name?(Y/N):"
+while [ "$SERVICENAME_QUE" != "Y" -a "$SERVICENAME_QUE" != "y" -a "$SERVICENAME_QUE" != "N" -a "$SERVICENAME_QUE" != "n" ]
+do
+  	read SERVICENAME_QUE?"Do you want add RealSync service name?(Y/N):"
+done
+
+if [ $SERVICENAME_QUE = "Y" -o $SERVICENAME_QUE = "y" ]
+then
+    add_servicename
+    if [ "$R_TYPE" = "SRC" ]
+    then
+        src_config
+    else
+        tgt_config
+    fi
+fi
+
+if [ "$R_TYPE" = "SRC" ]
+then
+  echo " "
+  read REGISTER_QUE?"Do you want register RealSync ServiceName $S_NAME?(Y/N):"
+  while [ "$REGISTER_QUE" != "Y" -a "$REGISTER_QUE" != "y" -a "$REGISTER_QUE" != "N" -a "$REGISTER_QUE" != "n" ]
+  do
+    read REGISTER_QUE?"Do you want register RealSync ServiceName $S_NAME?(Y/N):"
+  done
+  if [ $REGISTER_QUE = "Y" -o $REGISTER_QUE = "y" ]
+  then
+     echo "Starting register ServiceName $S_NAME HOST and DATABASE"
+     echo "Starting Source ServiceName $S_NAME Process......" 
+     cd $REALSYNC_BASE/scripts
+     ./start_vagentd $S_NAME
+     sleep 2
+     register_system $S_NAME
+  fi
+fi
+
+if [ "$R_TYPE" = "TGT" ]
+then
+  echo " "
+  echo "Starting Target ServiceName $S_NAME Process......" 
+  cd $REALSYNC_BASE/scripts
+  ./start_vagentd $S_NAME
+  sleep 2
+fi

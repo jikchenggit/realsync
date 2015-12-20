@@ -1,0 +1,85 @@
+#!/bin/ksh
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+  cd ..
+  REALSYNC_BASE=`pwd`
+fi
+
+Usage()
+{
+  echo "    ************************************************************************************"
+  echo "    USAGE: reset SERVICE_NAME "
+  echo "           SERVICE_NAME : please refer to ${REALSYNC_BASE}/config.srv or all"
+  echo "                                          "
+  echo "       SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                         $i"
+  done 
+  echo "                         all (reset all)"
+  echo "    ************************************************************************************"
+  exit
+}
+
+if [ $# -lt 1 ]
+then
+  Usage
+fi
+
+DB_NAME=$1
+
+SERVICENAME=`grep -w "$DB_NAME" ${REALSYNC_BASE}/config.srv`
+if [ -z "$SERVICENAME" -a "$DB_NAME" != "all" ]        
+then
+  echo "Warning: SERVICE_NAME $DB_NAME not found in ${REALSYNC_BASE}/config.srv."
+  echo "SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                  $i"
+  done
+  echo "                  all (reset all)"
+  exit
+fi
+
+reset()
+{
+ cd ${REALSYNC_BASE}/scripts
+ ./stop_vagentd.bak $1
+./clean $1 <<EOF
+y
+EOF
+ ./start_vagentd $1
+}
+
+read OPTION?"Do you really want to reset ${1}, (Y/N):" 
+while true
+do
+  if [ "$OPTION" != "Y" -a "$OPTION" != "y" -a "$OPTION" != "N" -a "$OPTION" != "n" ] 
+  then
+      read OPTION?"Do you really want to reset ${1}, (Y/N):"  
+  else
+      break
+  fi
+done
+if [ "$OPTION" = "Y" -o "$OPTION" = "y" ]
+then
+    echo "Begin reset ${1}"
+    if [ "$1" != "all" ]
+    then
+        reset $1
+    else
+        for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+        do
+          reset $i
+        done
+    fi
+    echo "End reset ${1}"
+fi
+if [ "$OPTION" = "N" -o "$OPTION" = "n" ]
+then
+  echo "No reset"
+  exit
+fi
+
+

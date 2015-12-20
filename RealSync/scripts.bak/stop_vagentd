@@ -1,0 +1,282 @@
+#!/bin/ksh
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+  cd ..
+  REALSYNC_BASE=`pwd`
+fi
+
+Usage()
+{
+  echo "    ************************************************************************************"
+  echo "    USAGE: stop_vagentd SERVICE_NAME [TYPE]"
+  echo "           SERVICE_NAME : please refer to ${REALSYNC_BASE}/config.srv"
+  echo "                   TYPE : agn/svr/snd/load"
+  echo "                                          "
+  echo "       SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                         $i"
+  done 
+  echo "                         all (stop all)"
+  echo "    ************************************************************************************"
+  exit
+}
+
+if [ $# -lt 1 -a -z "$SERVICE_NAME" ]
+then
+  Usage
+fi
+
+DB_NAME=""
+if [ ! -z "$SERVICE_NAME" ]
+then
+    DB_NAME=$SERVICE_NAME
+else
+    DB_NAME=$1
+fi
+
+SERVICENAME=`grep -w "$DB_NAME" ${REALSYNC_BASE}/config.srv`
+if [ -z "$SERVICENAME" -a "$DB_NAME" != "all" ]
+then
+  echo "Warning: SERVICE_NAME $DB_NAME not found in ${REALSYNC_BASE}/config.srv."
+  echo "SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                  $i"
+  done
+  echo "                  all (stop all)"
+  exit
+fi
+
+agn_stop()
+{
+ AGN_PORT=`grep -w "$1" ${REALSYNC_BASE}/config.srv | awk '{print $3}'`
+ pid=`ps -ef | grep vagentd | grep ${AGN_PORT} | grep -v grep | awk '{print $2}'`
+  if [ ! -z "$pid" ]
+  then
+    echo "v" > ${REALSYNC_BASE}/xldr/${1}/run_state.ctl
+    sleep 2
+    pid=`ps -ef | grep "vagentd" | grep -w "$1" | grep ${AGN_PORT} | grep -v grep | awk '{print $2}'` 
+    while [ ! -z "$pid" ]
+    do
+       echo "$1 vagentd does not Stopped,retry after 3s ..."
+       sleep 3
+       pid=`ps -ef | grep "vagentd" | grep -w "$1" | grep ${AGN_PORT} | grep -v grep | awk '{print $2}'`
+    done
+    echo "$1 vagentd with port ${AGN_PORT} Stopped"
+    mv ${REALSYNC_BASE}/xldr/${1}/run_state.ctl ${REALSYNC_BASE}/xldr/${1}/run_state.ctl.bak
+  fi
+}
+
+svr_stop()
+{
+ SVR_PORT=`grep -w "$1" ${REALSYNC_BASE}/config.srv | awk '{print $2}'`
+ SYSTEM_ROLE=`grep -w "$1" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+ pid=`ps -ef | grep dbpsd | grep ${SVR_PORT} | grep -v grep | awk '{print $2}'`
+  if [ !  -z "$pid" ]
+  then
+    for p in $pid
+    do
+      kill -9 $p
+    done
+    echo "Dbpsd with port ${SVR_PORT} Stopped."
+  fi
+}
+
+load_stop()
+{
+ SYSTEM_ROLE=`grep -w "$1" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+ if [ "${SYSTEM_ROLE}" = "TGT" ]
+  then
+    OPTION="all"
+    read OPTION?"Do you want to stop loader -r or stop loader -s or stop all loader (r/s/all):(default all):"
+    if [ -z "$OPTION" ]
+    then
+      OPTION="all"
+    fi
+    while [ "$OPTION" != "r" -a "$OPTION" != "s" -a "$OPTION" != "all" ]
+    do
+      echo "Error input"
+      read OPTION?"Please reinput your choice (r/s/all):(default all):"
+    done
+    if [ "$OPTION" = "R" -o "$OPTION" = "r" ]
+    then 
+      pid=`ps -ef | grep "loader -r" | grep -w "$1" | grep -v grep | awk '{print $2}'`
+      if [ ! -z "$pid" ]
+      then
+        echo "r" > ${REALSYNC_BASE}/xldr/${1}/run_state.ctl
+        sleep 2
+        pid=`ps -ef | grep "loader -r" | grep -w "$1" | grep -v grep | awk '{print $2}'` 
+        while [ ! -z "$pid" ]
+        do
+           echo "$1 loader -r does not Stopped,retry after 3s ..."
+           sleep 3
+           pid=`ps -ef | grep "loader -r" | grep -w "$1" | grep -v grep | awk '{print $2}'`
+        done
+        echo "$1 loader -r Stopped"
+        mv ${REALSYNC_BASE}/xldr/${1}/run_state.ctl ${REALSYNC_BASE}/xldr/${1}/run_state.ctl.bak
+      fi
+    fi
+    if [ "$OPTION" = "S" -o "$OPTION" = "s" ]
+    then
+      pid=`ps -ef | grep "loader -s" | grep -w "$1" | grep -v grep | awk '{print $2}'`
+      if [ ! -z "$pid" ]
+      then
+        echo "s" > ${REALSYNC_BASE}/xldr/${1}/run_state.ctl
+        sleep 2
+        pid=`ps -ef | grep "loader -s" | grep -w "$1" | grep -v grep | awk '{print $2}'` 
+        while [ ! -z "$pid" ]
+        do
+           echo "$1 loader -s does not Stopped,retry after 3s ..."
+           sleep 3
+           pid=`ps -ef | grep "loader -s" | grep -w "$1" | grep -v grep | awk '{print $2}'`
+        done
+        echo "$1 loader -s Stopped"
+        mv ${REALSYNC_BASE}/xldr/${1}/run_state.ctl ${REALSYNC_BASE}/xldr/${1}/run_state.ctl.bak
+      fi
+    fi
+    if [ "$OPTION" = "ALL" -o "$OPTION" = "all" ]
+    then
+      pid=`ps -ef | grep loader | grep -w "$1" | grep -v grep | awk '{print $2}'`
+      if [ ! -z "$pid" ]
+      then
+        echo "sr" > ${REALSYNC_BASE}/xldr/${1}/run_state.ctl
+        sleep 2
+        pid=`ps -ef | grep "loader" | grep -w "$1" | grep -v grep | awk '{print $2}'` 
+        while [ ! -z "$pid" ]
+        do
+           echo "$1 loader -r and loader -s does not Stopped,retry after 3s ..."
+           sleep 3
+           pid=`ps -ef | grep "loader" | grep -w "$1" | grep -v grep | awk '{print $2}'`
+        done
+        echo "$1 loader -r and loader -s Stopped"
+        mv ${REALSYNC_BASE}/xldr/${1}/run_state.ctl ${REALSYNC_BASE}/xldr/${1}/run_state.ctl.bak
+      fi
+    fi
+ else
+    echo "Please stop loader in target host"
+ fi
+}
+
+snd_stop()
+{
+  SYSTEM_ROLE=`grep -w "$1" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+  if [ "${SYSTEM_ROLE}" = "SRC" ]
+    then
+      pid=`ps -ef | grep sender | grep -w "$1" | grep -v grep | awk '{print $2}'`
+      if [ ! -z "$pid" ]
+      then
+        echo "x" > ${REALSYNC_BASE}/xldr/${1}/run_state.ctl
+        sleep 2
+        pid=`ps -ef | grep "sender" | grep -w "$1" | grep -v grep | awk '{print $2}'` 
+        while [ ! -z "$pid" ]
+        do
+           echo "$1 sender does not Stopped,retry after 3s ..."
+           sleep 3
+           pid=`ps -ef | grep "sender" | grep -w "$1" | grep -v grep | awk '{print $2}'`
+        done
+        echo "$1 sender Stopped"
+        mv ${REALSYNC_BASE}/xldr/${1}/run_state.ctl ${REALSYNC_BASE}/xldr/${1}/run_state.ctl.bak
+      fi
+   fi
+}
+
+all_stop()
+{
+  AGN_PORT=`grep -w "$1" ${REALSYNC_BASE}/config.srv | awk '{print $3}'`
+  SVR_PORT=`grep -w "$1" ${REALSYNC_BASE}/config.srv | awk '{print $2}'`
+  SYSTEM_ROLE=`grep -w "$1" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+  pid=`ps -ef | grep vagentd | grep ${AGN_PORT} | grep -v grep | awk '{print $2}'`
+  if [ !  -z "$pid" ]
+  then
+    agn_stop $1
+  fi
+  pid=`ps -ef | grep dbpsd | grep ${SVR_PORT} | grep -v grep | awk '{print $2}'`
+  if [ !  -z "$pid" ]
+  then
+    for p in $pid
+    do
+      kill -9 $p
+    done
+    echo "$1 dbpsd with port ${SVR_PORT} Stopped."
+  fi
+  pid=`ps -ef | grep archive_del_log | grep -w "$1" | grep -v grep | awk '{print $2}'`
+  if [ !  -z "$pid" ]
+  then
+    for p in $pid
+    do
+      kill -9 $p
+    done
+    echo "$1 archive_del_log Stopped."
+  fi
+  if [ "${SYSTEM_ROLE}" = "TGT" ]
+  then
+    pid=`ps -ef | grep loader | grep -w "$1" | grep -v grep | awk '{print $2}'`
+    if [ ! -z "$pid" ]
+    then
+      echo "sr" > ${REALSYNC_BASE}/xldr/${1}/run_state.ctl
+      sleep 2
+      pid=`ps -ef | grep "loader" | grep -w "$1" | grep -v grep | awk '{print $2}'` 
+      while [ ! -z "$pid" ]
+      do
+         echo "$1 loader -r and loader -s does not Stopped,retry after 3s ..."
+         sleep 3
+         pid=`ps -ef | grep "loader" | grep -w "$1" | grep -v grep | awk '{print $2}'`
+      done
+      echo "$1 loader -r and loader -s Stopped"
+      mv ${REALSYNC_BASE}/xldr/${1}/run_state.ctl ${REALSYNC_BASE}/xldr/${1}/run_state.ctl.bak
+    fi
+  else
+    if [ "${SYSTEM_ROLE}" = "SRC" ]
+    then
+      pid=`ps -ef | grep sender | grep -w "$1" | grep -v grep | awk '{print $2}'`
+      if [ ! -z "$pid" ]
+      then
+        snd_stop $1
+      fi
+    fi
+  fi
+}
+
+if [ $# -lt 2 ]
+then
+  if [ "${DB_NAME}" != "all" ]
+  then
+    cd ${REALSYNC_BASE}/scripts
+    #./stop_oxad ${DB_NAME}
+    all_stop ${DB_NAME}
+  else
+    for NAME in `cat ${REALSYNC_BASE}/config.srv |grep -v "#" |grep -v grep | awk '{print $1}'`
+    do
+      cd ${REALSYNC_BASE}/scripts
+      #./stop_oxad ${NAME}
+      all_stop ${NAME}
+      sleep 2
+    done
+  fi
+else
+  if [ $2 != "agn" -a $2 != "svr" -a $2 != "load" -a $2 != "snd" ]
+  then
+    echo "Error Input TYPE"
+    Usage
+    exit
+  fi
+  if [ $2 = "agn" ]
+  then
+    agn_stop ${DB_NAME}
+  fi
+  if [ $2 = "svr" ]
+  then
+    svr_stop ${DB_NAME}
+  fi
+  if [ $2 = "load" ]
+  then
+    load_stop ${DB_NAME}
+  fi
+  if [ $2 = "snd" ]
+  then
+    snd_stop ${DB_NAME}
+  fi
+fi
+exit

@@ -1,0 +1,81 @@
+#!/bin/ksh
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+  cd ..
+  REALSYNC_BASE=`pwd`
+fi
+
+Usage()
+{
+  echo "    ************************************************************************************"
+  echo "    USAGE: clean SERVICE_NAME "
+  echo "           SERVICE_NAME : please refer to ${REALSYNC_BASE}/config.srv"
+  echo "                                          "
+  echo "       SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                         $i"
+  done 
+  echo "    ************************************************************************************"
+  exit
+}
+
+if [ $# -lt 1 -a -z "$SERVICE_NAME" ]
+then
+  Usage
+fi
+
+DB_NAME=""
+if [ ! -z "$SERVICE_NAME" ]
+then
+    DB_NAME=$SERVICE_NAME
+else
+    DB_NAME=$1
+fi
+
+SERVICENAME=`grep -w "$DB_NAME" ${REALSYNC_BASE}/config.srv`
+if [ -z "$SERVICENAME" ]        
+then
+  echo "Warning: SERVICE_NAME $DB_NAME not found in ${REALSYNC_BASE}/config.srv."
+  echo "SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                  $i"
+  done
+  exit
+fi
+
+if [ ! -z "$SERVICE_NAME" ]
+then
+    VCFS_HOME=${REALSYNC_BASE}/vcfsa/$DB_NAME
+    rm -rf ${VCFS_HOME}/*
+    XLDR_HOME=${REALSYNC_BASE}/xldr/$DB_NAME
+    rm -rf ${XLDR_HOME}
+    mkdir ${XLDR_HOME}
+    echo "$DB_NAME clean is over"
+else
+  read OPTION?"Do you really want to clean $DB_NAME cache file ${REALSYNC_BASE}/xldr/$DB_NAME (Y/N):" 
+  while true
+  do
+    if [ "$OPTION" != "Y" -a "$OPTION" != "y" -a "$OPTION" != "N" -a "$OPTION" != "n" ] 
+    then
+        read OPTION?"Do you really want to clean $DB_NAME cache file ${REALSYNC_BASE}/xldr/$DB_NAME (Y/N):"
+    else
+        break
+    fi
+  done
+  if [ "$OPTION" = "Y" -o "$OPTION" = "y" ]
+  then
+    VCFS_HOME=${REALSYNC_BASE}/vcfsa/$DB_NAME
+    rm -rf ${VCFS_HOME}/*
+    XLDR_HOME=${REALSYNC_BASE}/xldr/$DB_NAME
+    rm -rf ${XLDR_HOME}
+    mkdir ${XLDR_HOME}
+    echo "$DB_NAME clean is over"
+  fi
+  if [ "$OPTION" = "N" -o "$OPTION" = "n" ]
+  then
+    echo "no cache file clean"
+  fi
+fi

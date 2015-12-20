@@ -1,0 +1,29 @@
+#!/bin/ksh
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+  cd ..
+  REALSYNC_BASE=`pwd`
+fi
+
+SERVICE_NAME=$1
+OXAD_IP=127.0.0.1
+OXAD_PORT=`cat $REALSYNC_BASE/config.srv |grep -v grep |grep "$SERVICE_NAME" |awk '{print $6}'`
+
+stop_oxad()
+{
+  pid=`ps -ef |grep oxad |grep -v grep |grep $OXAD_PORT |wc -l`
+  while [ $pid -ge 1 ]
+  do
+    ps -ef |grep oxad |grep -v grep |grep $OXAD_PORT |awk '{print "kill -9 "$2}'|sh
+    pid=`ps -ef |grep oxad |grep -v grep |grep $OXAD_PORT |wc -l`
+  done
+  echo "Oxad was Stopped." 
+}
+
+OPTION="oxad"
+
+if [ "$OPTION" = "oxad" ]
+then
+    stop_oxad
+fi

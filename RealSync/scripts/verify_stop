@@ -1,0 +1,83 @@
+#!/bin/ksh
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+    cd ..
+    REALSYNC_BASE=`pwd`
+fi
+
+SERVICENAME=`grep -w "$1" ${REALSYNC_BASE}/config.srv`
+if [ -z "$SERVICENAME" -a "$1" != "all" ]        
+then
+  echo "Warning: SERVICE_NAME $1 not found in ${REALSYNC_BASE}/config.srv."
+  echo "SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                  $i"
+  done
+  echo "                  all (stop all verify)"
+  exit
+fi
+
+ VERIFY_PORT=`grep -w "$1" ${REALSYNC_BASE}/config.srv | awk '{print $6}'`
+
+Usage()
+{
+  echo "    ************************************************************************************"
+  echo "    USAGE: StopVerify.sh SERVICE_NAME"
+  echo "           SERVICE_NAME : please refer to ${REALSYNC_BASE}/config.srv"
+  echo "                                          "
+  echo "       SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                         $i"
+  done 
+  echo "                         all (stop all verify)"
+  echo "    ************************************************************************************"
+  exit
+}
+
+ 
+if [ $# -ne 1 ]
+then
+  Usage
+fi
+
+
+
+kill_verify()
+{
+  SVR_NAME=$1
+  SYSTEM_ROLE=`grep -w "$SVR_NAME" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+  VERIFY_PORT=`grep -w "$SVR_NAME" ${REALSYNC_BASE}/config.srv | awk '{print $6}'`
+  pid=`ps -ef | grep vagentd | grep ${VERIFY_PORT} | grep -v grep | awk '{print $2}'`
+  if [ !  -z "$pid" ]
+  then
+    for p in $pid
+    do
+      kill -9 $p
+    done
+    echo "Verify Agent with port ${VERIFY_PORT} Stopped."
+  fi
+  pid=`ps -ef | grep loader | grep -w "$SVR_NAME" | grep onlycheck| grep -v grep | awk '{print $2}'`
+  if [ ! -z "$pid" ]
+  then
+      for p in $pid
+      do
+         kill -9 $p
+      done
+      echo "$SVR_NAME verify loader killed"
+  fi
+}
+
+if [ $1 != "all" ]
+then
+   kill_verify $1
+else
+   for i in `cat ${REALSYNC_BASE}/config.srv |grep -v "#" |awk '{print $1}'`
+   do
+     kill_verify $i
+     sleep 2
+   done
+fi
+exit

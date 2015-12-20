@@ -1,0 +1,113 @@
+#!/bin/ksh
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+  cd ..
+  REALSYNC_BASE=`pwd`
+fi
+
+Usage()
+{
+  echo "    ************************************************************************************"
+  echo "    USAGE: reset ROLE_TYPE SERVICE_NAME "
+  echo "              ROLE_TYPE : src(SRC) or tgt(TGT)"
+  echo "           SERVICE_NAME : please refer to ${REALSYNC_BASE}/config.srv or all"
+  echo "                                          "
+  echo "       SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                         $i"
+  done 
+  echo "                         all (reset all)"
+  echo "    ************************************************************************************"
+  exit
+}
+
+if [ $# -lt 2 ]
+then
+  Usage
+fi
+
+DB_NAME=$2
+
+SERVICENAME=`grep -w "$DB_NAME" ${REALSYNC_BASE}/config.srv`
+if [ -z "$SERVICENAME" -a "$DB_NAME" != "all" ]       
+then
+  echo "Warning: ROLE_TYPE $1 false or SERVICE_NAME $DB_NAME not found in ${REALSYNC_BASE}/config.srv."
+  echo "ROLE_TYPE : src(SRC) or tgt(TGT)"
+  echo "SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                  $i"
+  done
+  echo "                  all (reset all)"
+  exit
+fi
+
+if [ "$1" != "src" -a "$1" != "SRC" -a "$1" != "tgt" -a "$1" != "TGT" ]        
+then
+  echo "Warning: ROLE_TYPE $1 false or SERVICE_NAME $DB_NAME not found in ${REALSYNC_BASE}/config.srv."
+  echo "ROLE_TYPE : src(SRC) or tgt(TGT)"
+  echo "SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                  $i"
+  done
+  echo "                  all (reset all)"
+  exit
+fi
+
+reset()
+{
+ cd ${REALSYNC_BASE}/scripts
+ ./stop_vagentd $1
+ ./stop_rmp $1
+./clean $1 <<EOF
+y
+EOF
+ R_TYPE=`grep -w "$1" ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $4}'`
+ ROLE=""
+ if [ "$2" = "src" -o "$2" = "SRC" ]
+ then
+     ROLE="SRC"
+ else
+     ROLE="TGT"
+ fi
+ if [ "$R_TYPE" = "$ROLE" ]
+ then
+     ./start_vagentd $1
+ fi
+ ./start_rmp $1
+}
+
+read OPTION?"Do you really want to reset ${1} ${2}, (Y/N):" 
+while true
+do
+  if [ "$OPTION" != "Y" -a "$OPTION" != "y" -a "$OPTION" != "N" -a "$OPTION" != "n" ] 
+  then
+      read OPTION?"Do you really want to reset ${1} ${2}, (Y/N):"  
+  else
+      break
+  fi
+done
+if [ "$OPTION" = "Y" -o "$OPTION" = "y" ]
+then
+    echo "Begin reset ${1} ${2}"
+    if [ "$2" != "all" ]
+    then
+        reset $2 $1 
+    else
+        for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+        do
+          reset $i $1
+        done
+    fi
+    echo "End reset ${1} ${2}"
+fi
+if [ "$OPTION" = "N" -o "$OPTION" = "n" ]
+then
+  echo "No reset"
+  exit
+fi
+
+

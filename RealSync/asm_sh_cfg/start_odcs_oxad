@@ -1,0 +1,122 @@
+#!/bin/ksh
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+  cd ..
+  REALSYNC_BASE=`pwd`
+fi
+
+SERVICE_NAME=`cat $REALSYNC_BASE/config.srv |grep -v grep |grep -v "#" |awk '{print $1}' |head -1`
+OXAD_IP=127.0.0.1
+OXAD_PORT=6819
+DB_USER=`grep SOURCE_DB_USER $REALSYNC_BASE/config/$SERVICE_NAME/config.dsg | awk -F= '{print $2}'`
+DB_PWD=`grep SOURCE_DB_PSWD $REALSYNC_BASE/config/$SERVICE_NAME/config.dsg | awk -F= '{print $2}'`
+
+start_odcs()
+{
+  cd $REALSYNC_BASE/bin/$SERVICE_NAME
+  ./odcformat $DB_USER/$DB_PWD asm_lvm 128M
+
+  sleep 2
+
+  export DBPS_HOME=$REALSYNC_BASE/dbps/$SERVICE_NAME
+  export ODCS_ASM_CONF=$REALSYNC_BASE/config/$SERVICE_NAME/odcs_asm.conf
+  nohup ./odcs $REALSYNC_BASE/bin/$SERVICE_NAME/asm_lvm 127.0.0.1:2002 > $REALSYNC_BASE/log/$SERVICE_NAME/log.odcs 2>&1 &
+
+  sleep 2
+
+  pid=`ps -ef |grep odcs |grep -v grep |grep $SERVICE_NAME | awk '{print $2}'`
+  if [ ! -z $pid ]
+  then
+     echo "Odcs with port 2002 Started." 
+     ps -ef |grep odcs |grep -v grep |grep $SERVICE_NAME
+  fi
+
+}
+
+start_oxad()
+{
+  export DBPS_HOME=$REALSYNC_BASE/dbps/$SERVICE_NAME
+
+  #export OXAD_DEBUG_HOME=$REALSYNC_BASE/log/$SERVICE_NAME/oxad
+  #mv $REALSYNC_BASE/log/$SERVICE_NAME/oxad/* $REALSYNC_BASE/log/$SERVICE_NAME/oxad_bak
+
+  cd $REALSYNC_BASE/bin/$SERVICE_NAME
+  ./oxad -startup -n $OXAD_IP:$OXAD_PORT -blen 30M
+
+  #./oxad.debug -startup -log $REALSYNC_BASE/log/$SERVICE_NAME/log.oxad -n $OXAD_IP:$OXAD_PORT -blen 30M
+  #./oxad -startup -log $REALSYNC_BASE/log/$SERVICE_NAME/log.oxad -n $OXAD_IP:$OXAD_PORT -blen 30M
+  sleep 1
+
+  pid=`ps -ef |grep oxad |grep -v grep |grep $OXAD_PORT | awk '{print $2}'`
+  if [ ! -z $pid ]
+  then
+      echo "Oxad with port $OXAD_PORT Started."
+      ps -ef |grep oxad |grep -v grep |grep $OXAD_PORT
+  fi
+
+}
+
+#read OPTION?"Do you want to start oxad or start odcs or start all (oxad/odcs/all):(default all):"
+#if [ -z "$OPTION" ]
+#then
+#    OPTION="all"
+#fi
+#while [ "$OPTION" != "oxad" -a "$OPTION" != "odcs" -a "$OPTION" != "all" ]
+#do
+#  echo "Error Input"
+#  read OPTION?"Please reinput your choice (oxad/odcs/all):(default all):"
+#done
+
+OPTION="oxad"
+
+if [ "$OPTION" = "all" ]
+then
+    pid_oxad=`ps -ef |grep oxad |grep -v grep |grep $OXAD_PORT |wc -l`
+    pid_odcs=`ps -ef |grep odcs |grep -v grep |grep $SERVICE_NAME | wc -l`
+
+    if [ $pid_oxad -ge 1 ]
+    then
+        echo "INFORMANTION: another oxad with port $OXAD_PORT is running."
+        exit
+    fi
+   
+    if [ $pid_odcs -ge 1 ]
+    then
+        echo "INFORMANTION: another odcs with port 2002 is running."
+        exit
+    fi
+
+    start_oxad
+    sleep 1
+    start_odcs
+fi
+
+if [ "$OPTION" = "oxad" ]
+then
+    pid_oxad=`ps -ef |grep oxad |grep -v grep |grep $OXAD_PORT |wc -l`
+    if [ $pid_oxad -ge 1 ]
+    then
+        echo "INFORMANTION: another oxad with port $OXAD_PORT is running."
+        exit
+    fi
+
+    start_oxad
+fi
+
+if [ "$OPTION" = "odcs" ]
+then
+    pid_odcs=`ps -ef |grep odcs |grep -v grep |grep $SERVICE_NAME | wc -l`
+    if [ $pid_odcs -ge 1 ]
+    then
+        echo "INFORMANTION: another odcs with port 2002 is running."
+        exit
+    fi
+    pid_oxad=`ps -ef |grep oxad |grep -v grep |grep $OXAD_PORT |wc -l`
+    if [ $pid_oxad -lt 1 ]
+    then
+        echo "INFORMANTION: oxad isn't start,please start it."
+        exit
+    fi
+    start_odcs
+fi

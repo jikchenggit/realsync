@@ -1,0 +1,176 @@
+[sys]
+home=/dsg/yqing/NewRealSync/dbps/newtest
+dict_path=/dsg/yqing/NewRealSync/dbps/newtest/rmp/imp_db10
+
+foreground=y
+max_threads=8
+max_sessions=8
+rmp_shm=n
+
+###############################
+# msld work buffer size, default: 600M
+###############################
+blen=600
+
+###############################
+# msld status 'PAUSE/RUNNING' when start, default Pause
+# Pause / Running
+###############################
+status = running
+
+[db]
+###############################
+# database connect parameter set
+###############################
+home=/oracle10/product/10.2
+name=db10
+host=127.0.0.1
+port=9993
+user=dsg
+passwd=dsg
+sid=db10
+tns=
+tns_admin=
+
+###############################
+# commit mode, default M_FILE
+# M_IMMIDIATELY : do commit immidiately after data loaded
+# M_FILE        : do commit at a file loaded
+# M_DELAY       : do commit in every interval
+###############################
+commit_mode = M_FILE
+
+###############################
+# only in M_DELAY mode, set interval time, default 1 min
+###############################
+commit_delay =
+
+###############################
+# loader max number from array mode, default 100
+###############################
+max_array_num= 100
+
+[mapping]
+###############################
+# users and tables mapping set
+# example:
+# table_map=    ds.t1:dt.t2   ds.t3 : dt.t4
+#               ds1 : ds2
+###############################
+#table_map =  source :  dtdt
+#table_map =  SO2 :  dtdt   
+            DSG_QUERY : dtdt
+#table_map =  dt :  dtdt
+#table_map =  SO1 :  dtdt
+#table_map =  000 :  111
+#table_map = DSG : YQING
+
+###############################
+# tablespace mapping set
+# example: 
+# tablespace_map = ts1 : ts2  ts3 = ts4 
+#                 ts5 = ts6             
+###############################
+#tablespace_map= YY_DAT03 : USERS
+#              HUGE_TABLESPACE : USERS
+#                YY_DATA  : USERS
+#                USERS : SYSTEM          
+#tablespace_map= user:system system:user
+
+###############################
+# partition mapping set (not used)
+###############################
+partition_map=
+
+[input]
+###############################
+# max input file size, default 5M
+###############################
+max_file_size=
+
+###############################
+# max cache file number, default 5
+###############################
+max_cache_files=2
+
+###############################
+# xf1   : load xf1 stream
+# xdt   : load xdt(v2) stream, default
+# xdt1  : load xdt(v1) stream (not used)
+###############################
+type=xf1
+
+###############################
+# y/n: backup files  .bak, default no
+###############################
+backup=n
+
+[output]
+###############################
+# default oracle
+###############################
+
+[log]
+###############################
+# log pathname, defaut 'SCREEN'
+###############################
+log_file=
+
+###############################
+# log archive path, default MSL_HOME/log/arch/
+###############################
+arch_path=
+
+###############################
+# log max archive size, default 10G
+###############################
+max_arch_size=
+
+###############################
+# output log mode LOG/INFO/DEBUG, default LOG
+# LOG   : default log info
+# INFO  : more log info
+# DEBUG : debug log info
+###############################
+log_mode= LOG
+
+[performance]
+###############################
+# on/off/detail : switch PREFORMANCE mode, default off
+###############################
+perf_type=
+
+###############################
+# dump performance interval PER_FILE/DELAY, default PER_FILE
+# PER_FILE      : after a file loaded
+# DELAY         : every 1 min
+###############################
+perf_mode=
+
+[debug]
+###############################
+# y/n: show more debug info in log, default no
+###############################
+debug=n
+
+print_rowid=n
+
+###############################
+# y/n: enable check memory leak, default no
+###############################
+memleak=n
+
+###############################
+# y/n: enable dump debug file to $HOME/tmp, default no
+###############################
+dump=n
+
+###############################
+# y/n: start dummy load thread mode, used by system debug, default no
+###############################
+dummy_load=n
+llo_debug=n
+lxo_debug=n
+verbose=n
+verbose3=n
+

@@ -1,0 +1,135 @@
+#!/bin/ksh
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+  cd ..
+  REALSYNC_BASE=`pwd`
+fi
+
+if [ -d "$ORACLE_HOME/lib32" ]
+then
+  export LD_LIBRARY_PATH=$ORACLE_HOME/lib32
+  export LIBPATH=$ORACLE_HOME/lib32
+  export SHLIB_PATH=$ORACLE_HOME/lib32
+else
+  export LD_LIBRARY_PATH=$ORACLE_HOME/lib
+  export LIBPATH=$ORACLE_HOME/lib
+  export SHLIB_PATH=$ORACLE_HOME/lib
+fi
+#export XLOGGER=Y
+#export XMON_GET_GUI_STATE=1
+
+Usage()
+{
+  echo "    ************************************************************************************"
+  echo "    USAGE: start_rmp SERVICE_NAME "
+  echo "           SERVICE_NAME : please refer to ${REALSYNC_BASE}/config.srv or all"
+  echo "                                          "
+  echo "       SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                         $i"
+  done 
+  echo "                         all (start all)"
+  echo "    ************************************************************************************"
+  exit
+}
+
+if [ $# -lt 1 -a -z "$SERVICE_NAME" ]
+then
+  Usage
+fi
+
+DB_NAME=""
+if [ ! -z "$SERVICE_NAME" ]
+then
+    DB_NAME=$SERVICE_NAME
+else
+    DB_NAME=$1
+fi
+
+SERVICENAME=`grep -w "$DB_NAME" ${REALSYNC_BASE}/config.srv`
+if [ -z "$SERVICENAME" -a "$DB_NAME" != "all" ]        
+then
+  echo "Warning: SERVICE_NAME $DB_NAME not found in ${REALSYNC_BASE}/config.srv."
+  echo "SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                  $i"
+  done
+  echo "                  all (start all)"
+  exit
+fi
+
+start_rmp_sender()
+{
+  export VCFS_HOME=${REALSYNC_BASE}/vcfsa/$1
+  export XLDR_HOME=${REALSYNC_BASE}/xldr/$1
+  export DBPS_HOME=${REALSYNC_BASE}/dbps/$1  
+  export DXLDR_HOME=$XLDR_HOME/fmp
+  if [ ! -d "$DXLDR_HOME" ]
+  then
+    mkdir -p $DXLDR_HOME
+  fi
+  nohup ${REALSYNC_BASE}/bin/$1/rmp_sender -f $2:$3 > ${REALSYNC_BASE}/log/$1/log.rmp_sender 2>&1 &
+}
+
+start_rmp_loader()
+{
+  if [ `echo $1 |awk -F_ '{print $1}'` = "r" ]
+  then
+      SVR_NAME=`echo $1 |awk '{print substr($1,3)}'`
+  else
+      SVR_NAME="r_${1}"
+  fi
+  #echo $SVR_NAME
+  export RMP_HOME=${REALSYNC_BASE}/xldr/$SVR_NAME/imp_$3
+  export VCFS_HOME=${REALSYNC_BASE}/vcfsa/$SVR_NAME
+  export XLDR_HOME=${REALSYNC_BASE}/xldr/$SVR_NAME
+  export DBPS_HOME=${REALSYNC_BASE}/dbps/$SVR_NAME
+  if [ ! -d "$RMP_HOME" ]
+  then
+    mkdir -p ${RMP_HOME}
+  fi
+  nohup ${REALSYNC_BASE}/bin/$1/rmp_loader -dict $RMP_HOME/s_dict.xf1 $2 > ${REALSYNC_BASE}/log/$1/log.rmp_loader 2>&1 &
+}
+
+ if [ "${DB_NAME}" != "all" ]
+ then
+  AGN_PORT=`grep -w "${DB_NAME}" ${REALSYNC_BASE}/config.srv | awk '{print $3}'`
+  SVR_PORT=`grep -w "${DB_NAME}" ${REALSYNC_BASE}/config.srv | awk '{print $2}'`
+  SYSTEM_ROLE=`grep -w "${DB_NAME}" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+  RMP_PORT=0
+  let RMP_PORT=SVR_PORT+5
+
+  if [ "${SYSTEM_ROLE}" = "TGT" ]
+  then
+      pid=`ps -ef | grep rmp_sender | grep -w $DB_NAME | grep -v grep | awk '{print $2}'`
+      if [ -z "$pid" ]
+      then
+        RMP_IP=`cat ${REALSYNC_BASE}/config/${DB_NAME}/config.dsg |grep SOURCE_HOST_IP |grep -v grep |awk -F= '{print $2}'`
+        cd ${REALSYNC_BASE}/bin/${DB_NAME}
+        start_rmp_sender $DB_NAME $RMP_IP $RMP_PORT
+        echo "$DB_NAME rmp_sender Started."
+        sleep 2
+        ps -ef | grep rmp_sender | grep -w $DB_NAME
+      else
+        echo "INFORMANTION: another rmp_sender is running."
+      fi
+  fi
+  if [ "${SYSTEM_ROLE}" = "SRC" ]
+  then
+      pid=`ps -ef | grep rmp_loader | grep -w $DB_NAME | grep -v grep | awk '{print $2}'`
+      if [ -z "$pid" ]
+      then
+        SID=`cat ${REALSYNC_BASE}/config/${DB_NAME}/config.dsg |grep TARGET_ORACLE_SID |grep -v grep |awk -F= '{print $2}'`
+        cd ${REALSYNC_BASE}/bin/${DB_NAME}
+        start_rmp_loader $DB_NAME $RMP_PORT $SID
+        echo "$DB_NAME rmp_loader Started."
+        sleep 2
+        ps -ef | grep rmp_loader | grep -w $DB_NAME
+      else
+        echo "INFORMANTION: another rmp_loader is running."
+      fi
+  fi
+ fi

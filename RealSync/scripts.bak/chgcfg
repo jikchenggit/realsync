@@ -1,0 +1,402 @@
+#!/bin/ksh
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+  cd ..
+  REALSYNC_BASE=`pwd`
+fi
+
+if [ -d "$ORACLE_HOME/lib32" ]
+then
+  export LD_LIBRARY_PATH=$ORACLE_HOME/lib32
+  export LIBPATH=$ORACLE_HOME/lib32
+  export SHLIB_PATH=$ORACLE_HOME/lib32
+else
+  export LD_LIBRARY_PATH=$ORACLE_HOME/lib
+  export LIBPATH=$ORACLE_HOME/lib
+  export SHLIB_PATH=$ORACLE_HOME/lib
+fi
+
+
+chg_ip()
+{
+SVR_IP=`grep REALSYNC_SVR_IP ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+VMAN_LOGON=`grep VMANLOGON ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+SVR_PORT=`grep -w "$1" ${REALSYNC_BASE}/config.srv | awk '{print $2}'`
+SYSTEM_ROLE=`grep -w "${SVR_NAME}" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+cd ${REALSYNC_BASE}/bin/$1
+./vman <<EOF
+connect :${SVR_PORT}
+user ${VMAN_LOGON}
+menu
+1
+2
+5
+$2
+$3
+
+
+
+
+
+
+1
+
+q
+q
+q
+@${REALSYNC_BASE}/config/$1/dsdt.vm
+exit
+EOF
+
+echo ""
+
+if [ "$4" = "1" ]
+then
+    sed "s/$2/$3/g" ${REALSYNC_BASE}/config/$1/config.dsg > ${REALSYNC_BASE}/config/$1/config.dsg.tmp
+    cat ${REALSYNC_BASE}/config/$1/config.dsg.tmp
+    mv ${REALSYNC_BASE}/config/$1/config.dsg.tmp ${REALSYNC_BASE}/config/$1/config.dsg
+    echo ""
+    echo "Source host ip changed successful."
+    date
+else
+    sed "s/$2/$3/g" ${REALSYNC_BASE}/config/$1/config.dsg > ${REALSYNC_BASE}/config/$1/config.dsg.tmp
+    cat ${REALSYNC_BASE}/config/$1/config.dsg.tmp
+    mv ${REALSYNC_BASE}/config/$1/config.dsg.tmp ${REALSYNC_BASE}/config/$1/config.dsg
+    echo ""
+    echo "Target host ip changed successful."
+    date
+fi
+}
+
+chg_pswd()
+{
+SVR_IP=`grep REALSYNC_SVR_IP ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+VMAN_LOGON=`grep VMANLOGON ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+SVR_PORT=`grep -w "$1" ${REALSYNC_BASE}/config.srv | awk '{print $2}'`
+
+cd ${REALSYNC_BASE}/bin/$1
+./vman <<EOF
+connect :${SVR_PORT}
+user ${VMAN_LOGON}
+menu
+1
+4
+5
+$2
+
+
+$3
+$4
+
+
+
+
+
+
+q
+q
+q
+@${REALSYNC_BASE}/config/$1/dsdt.vm
+exit
+EOF
+
+echo ""
+
+if [ "$2" = "1" ]
+then
+    OLD_PWD=`grep SOURCE_DB_PSWD ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+    sed "s/SOURCE_DB_PSWD=$OLD_PWD/SOURCE_DB_PSWD=$4/g" ${REALSYNC_BASE}/config/$1/config.dsg > ${REALSYNC_BASE}/config/$1/config.dsg.tmp
+    cat ${REALSYNC_BASE}/config/$1/config.dsg.tmp
+    mv ${REALSYNC_BASE}/config/$1/config.dsg.tmp ${REALSYNC_BASE}/config/$1/config.dsg
+    echo ""
+    echo "Source Database Login password changed successful."
+    date
+else
+    OLD_PWD=`grep TARGET_DB_PSWD ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+    sed "s/TARGET_DB_PSWD=$OLD_PWD/TARGET_DB_PSWD=$4/g" ${REALSYNC_BASE}/config/$1/config.dsg > ${REALSYNC_BASE}/config/$1/config.dsg.tmp
+    cat ${REALSYNC_BASE}/config/$1/config.dsg.tmp
+    mv ${REALSYNC_BASE}/config/$1/config.dsg.tmp ${REALSYNC_BASE}/config/$1/config.dsg
+    echo ""
+    echo "Target Database Login password changed successful."
+    date
+fi
+}
+
+chg_itvl()
+{
+echo "set ds 1 -itvl $2 -state start" > ${REALSYNC_BASE}/config/$1/dsdt.vm
+echo "set dt 1.1 -tgt db 2 -xf1 y -state start" >> ${REALSYNC_BASE}/config/$1/dsdt.vm
+SVR_IP=`grep REALSYNC_SVR_IP ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+VMAN_LOGON=`grep VMANLOGON ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+SVR_PORT=`grep -w "$1" ${REALSYNC_BASE}/config.srv | awk '{print $2}'`
+SYSTEM_ROLE=`grep -w "${SVR_NAME}" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+cd ${REALSYNC_BASE}/bin/$1
+./vman <<EOF
+connect :${SVR_PORT}
+user ${VMAN_LOGON}
+@${REALSYNC_BASE}/config/$1/dsdt.vm
+exit
+EOF
+
+echo ""
+echo "Vagentd Process Redo Log Interval Time Changed Successful."
+echo "Please Check log.vagentd"
+exit
+}
+
+choice()
+{
+  echo "ServiceName List:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+    echo "                 $i"
+  done
+  echo ""
+  read SVR_NAME?"Please input ServiceName you want change:"
+  while true
+  do
+    if [ -z "$SVR_NAME" ]
+    then
+        read SVR_NAME?"Please input ServiceName you want change:"
+        continue
+    fi
+    SVR_NAME_T=`grep -w "$SVR_NAME" ${REALSYNC_BASE}/config.srv`
+    if [ -z "$SVR_NAME_T" ]
+    then
+        read SVR_NAME?"$SVR_NAME is invalid ServiceName,Please input again ServiceName you want change:"
+    else
+        break
+    fi
+  done
+  
+  SYSTEM_ROLE=`grep -w "${SVR_NAME}" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+  
+  if [ "$SYSTEM_ROLE" = "TGT" ]
+  then
+      echo "Here is Target host,please in Source host run it!"
+      echo "Exit now..."
+      exit
+  fi
+  
+  echo "Configure List:"
+  echo "               1 HOST IP"
+  echo "               2 DATABASE LOGIN PASSWORD"
+  echo "               3 VAGENTD PROCESS REDO LOG INTERVAL TIME"
+  echo " "
+  
+  read CHOOSE_SYSTEM?"Please input your want change configure (1/2/3):"
+  while [ "$CHOOSE_SYSTEM" != "1" -a "$CHOOSE_SYSTEM" != "2" -a "$CHOOSE_SYSTEM" != "3" ]
+  do
+    read CHOOSE_SYSTEM?"Please input your want change configure (1/2/3):"
+  done
+  
+  case "$CHOOSE_SYSTEM" in
+  1)
+    CHG_O="IP"
+    echo "Host List:"
+    echo "          1 SOURCE"
+    echo "          2 TARGET"
+    echo " "
+    read CHOOSE_HOST?"Please input your want change host (1/2):"
+    while [ "$CHOOSE_HOST" != "1" -a "$CHOOSE_HOST" != "2" ]
+    do
+      read CHOOSE_HOST?"Please input your want change host (1/2):"
+    done
+    
+    case "$CHOOSE_HOST" in
+    1)
+      OLD_SRC_IP=`grep SOURCE_HOST_IP ${REALSYNC_BASE}/config/$SVR_NAME/config.dsg | awk -F= '{print $2}'`
+      echo "Old Source IP is $OLD_SRC_IP,"
+      read NEW_IP?"Please input RealSync New Source IP:"
+      while true
+      do
+        if [ -z "$NEW_IP" ]
+        then
+            echo "Old Source IP is $OLD_SRC_IP,"
+            read NEW_IP?"Please input RealSync New Source IP:"
+            continue
+        fi 
+        NEW_IP_T=`[[ $NEW_IP = *[!0-9.]* ]] && echo string || echo digit`
+        if [ "$NEW_IP_T" = "string" ]
+        then
+            read NEW_IP?"Invalid IP,Please reinput RealSync New Source IP:"
+        else
+            break
+        fi
+      done
+      echo ""
+      echo "Old Source IP:$OLD_SRC_IP     New Source IP:$NEW_IP"
+      read MODIFY_QUE?"Do you really want modify? (Y/N):"
+      while [ "$MODIFY_QUE" != "Y" -a "$MODIFY_QUE" != "y" -a "$MODIFY_QUE" != "N" -a "$MODIFY_QUE" != "n" ]
+      do
+        read MODIFY_QUE?"Do you really want modify? (Y/N):"
+      done
+      if [ "$MODIFY_QUE" = "Y" -o "$MODIFY_QUE" = "y" ]
+      then
+          chg_ip $SVR_NAME $OLD_SRC_IP $NEW_IP $CHOOSE_HOST
+      else
+          echo "Nothing modify ..."
+          echo "Exit Now!"
+          exit
+      fi
+    ;;
+    2)
+      OLD_TGT_IP=`grep TARGET_HOST_IP ${REALSYNC_BASE}/config/$SVR_NAME/config.dsg | awk -F= '{print $2}'`
+      echo "Old Target IP is $OLD_TGT_IP,"
+      read NEW_IP?"Please input RealSync New Target IP:"
+      while true
+      do
+        if [ -z "$NEW_IP" ]
+        then
+            echo "Old Target IP is $OLD_TGT_IP,"
+            read NEW_IP?"Please input RealSync New Target IP:"
+            continue
+        fi 
+        NEW_IP_T=`[[ $NEW_IP = *[!0-9.]* ]] && echo string || echo digit`
+        if [ "$NEW_IP_T" = "string" ]
+        then
+            read NEW_IP?"Invalid IP,Please reinput RealSync New Target IP:"
+        else
+            break
+        fi
+      done
+      echo ""
+      echo "Old Target IP:$OLD_TGT_IP     New Target IP:$NEW_IP"
+      read MODIFY_QUE?"Do you really want modify? (Y/N):"
+      while [ "$MODIFY_QUE" != "Y" -a "$MODIFY_QUE" != "y" -a "$MODIFY_QUE" != "N" -a "$MODIFY_QUE" != "n" ]
+      do
+        read MODIFY_QUE?"Do you really want modify? (Y/N):"
+      done
+      if [ "$MODIFY_QUE" = "Y" -o "$MODIFY_QUE" = "y" ]
+      then
+          chg_ip $SVR_NAME $OLD_TGT_IP $NEW_IP $CHOOSE_HOST
+      else
+          echo "Nothing modify ..."
+          echo "Exit Now!"
+          exit
+      fi
+    ;;
+    esac
+  ;;
+  2)
+    CHG_O="PASSWD"
+    echo "DATABASE TYPE:"
+    echo "              1 SOURCE DATABASE"
+    echo "              2 TARGET DATABASE"
+    echo " "
+    read CHOOSE_DB?"Please input your want change database (1/2):"
+    while [ "$CHOOSE_DB" != "1" -a "$CHOOSE_DB" != "2" ]
+    do
+      read CHOOSE_DB?"Please input your want change database (1/2):"
+    done
+    case "$CHOOSE_DB" in
+    1)
+      OLD_PWD=`grep SOURCE_DB_PSWD ${REALSYNC_BASE}/config/$SVR_NAME/config.dsg | awk -F= '{print $2}'`
+      DB_USER=`grep SOURCE_DB_USER ${REALSYNC_BASE}/config/$SVR_NAME/config.dsg | awk -F= '{print $2}'`
+      SOURCE_HOST_IP=`grep SOURCE_HOST_IP ${REALSYNC_BASE}/config/$SVR_NAME/config.dsg | awk -F= '{print $2}'`
+      echo "Old Source database login password is $OLD_PWD,"
+      read NEW_PWD?"Please input RealSync New Source database login password:"
+      while [ -z "$NEW_PWD" ]
+      do
+        echo "Old Source database login password is $OLD_PWD,"
+        read NEW_PWD?"Please input RealSync New Source database login password:"
+      done
+      echo ""
+      echo "Old Source database login password:$OLD_PWD     New Source database login password:$NEW_PWD"
+      read MODIFY_QUE?"Do you really want modify? (Y/N):"
+      while [ "$MODIFY_QUE" != "Y" -a "$MODIFY_QUE" != "y" -a "$MODIFY_QUE" != "N" -a "$MODIFY_QUE" != "n" ]
+      do
+        read MODIFY_QUE?"Do you really want modify? (Y/N):"
+      done
+      if [ "$MODIFY_QUE" = "Y" -o "$MODIFY_QUE" = "y" ]
+      then
+          chg_pswd $SVR_NAME $CHOOSE_DB $DB_USER $NEW_PWD
+      else
+          echo "Nothing modify ..."
+          echo "Exit Now!"
+          exit
+      fi
+    ;;
+    2)
+      OLD_PWD=`grep TARGET_DB_PSWD ${REALSYNC_BASE}/config/$SVR_NAME/config.dsg | awk -F= '{print $2}'`
+      DB_USER=`grep TARGET_DB_USER ${REALSYNC_BASE}/config/$SVR_NAME/config.dsg | awk -F= '{print $2}'`
+      TARGET_HOST_IP=`grep TARGET_HOST_IP ${REALSYNC_BASE}/config/$SVR_NAME/config.dsg | awk -F= '{print $2}'`
+      echo "Old Target database login password is $OLD_PWD,"
+      read NEW_PWD?"Please input RealSync New Target database login password:"
+      while [ -z "$NEW_PWD" ]
+      do
+        echo "Old Target database login password is $OLD_PWD,"
+        read NEW_PWD?"Please input RealSync New Target database login password:"
+      done
+      echo ""
+      echo "Old Target database login password:$OLD_PWD     New Target database login password:$NEW_PWD"
+      read MODIFY_QUE?"Do you really want modify? (Y/N):"
+      while [ "$MODIFY_QUE" != "Y" -a "$MODIFY_QUE" != "y" -a "$MODIFY_QUE" != "N" -a "$MODIFY_QUE" != "n" ]
+      do
+        read MODIFY_QUE?"Do you really want modify? (Y/N):"
+      done
+      if [ "$MODIFY_QUE" = "Y" -o "$MODIFY_QUE" = "y" ]
+      then
+          chg_pswd $SVR_NAME $CHOOSE_DB $DB_USER $NEW_PWD
+      else
+          echo "Nothing modify ..."
+          echo "Exit Now!"
+          exit
+      fi
+    ;;
+    esac
+  ;;
+  3)
+    while true
+    do
+      echo "INTERVAL TIME : 1/2/3/4/5(s)"
+      read INTERVAL_TIME?"Please input your want change interval time (1/2/3/4/5)[default 5]:"
+      if [ -z "$INTERVAL_TIME" ]
+      then
+          INTERVAL_TIME="5"
+      fi
+      while [ "$INTERVAL_TIME" != "1" -a "$INTERVAL_TIME" != "2" -a "$INTERVAL_TIME" != "3" -a \
+              "$INTERVAL_TIME" != "4" -a "$INTERVAL_TIME" != "5" ]
+      do
+        read INTERVAL_TIME?"Please input your want change interval time (1/2/3/4/5)[default 5]:"
+      done
+      echo "NEW INTERVAL TIME is ${INTERVAL_TIME}s"
+      read MODIFY_QUE?"Do you really want change? (Y/N/R):"
+      while [ "$MODIFY_QUE" != "Y" -a "$MODIFY_QUE" != "y" -a "$MODIFY_QUE" != "N" -a "$MODIFY_QUE" != "n" -a \
+              "$MODIFY_QUE" != "R" -a "$MODIFY_QUE" != "r" ]
+      do
+        read MODIFY_QUE?"Do you really want change? (Y/N/R):"
+      done
+      if [ "$MODIFY_QUE" = "Y" -o "$MODIFY_QUE" = "y" ]
+      then
+          chg_itvl $SVR_NAME $INTERVAL_TIME
+      fi
+      if [ "$MODIFY_QUE" = "N" -o "$MODIFY_QUE" = "n" ]
+      then
+          echo "Nothing change ..."
+          echo "Exit Now!"
+          exit
+      fi
+      if [ "$MODIFY_QUE" = "R" -o "$MODIFY_QUE" = "r" ]
+      then
+          continue
+      fi
+    done
+  ;;
+  esac
+}
+
+read CHANGE_QUE?"Do you really want to change RealSync configure (Y/N):"
+while [ "$CHANGE_QUE" != "Y" -a "$CHANGE_QUE" != "y" -a "$CHANGE_QUE" != "N" -a "$CHANGE_QUE" != "n" ]
+do
+        read CHANGE_QUE?"Do you really want to change RealSync configure (Y/N):"
+done
+
+if [ "$CHANGE_QUE" = "Y" -o "$CHANGE_QUE" = "y" ]
+then
+         choice
+else
+   echo "Nothing configure change ..."
+   echo "Exit Now!"
+fi

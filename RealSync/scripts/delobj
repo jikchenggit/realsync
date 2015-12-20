@@ -1,0 +1,114 @@
+#!/bin/ksh
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+  cd ..
+  REALSYNC_BASE=`pwd`
+fi
+
+if [ -d "$ORACLE_HOME/lib32" ]
+then
+  export LD_LIBRARY_PATH=$ORACLE_HOME/lib32
+  export LIBPATH=$ORACLE_HOME/lib32
+  export SHLIB_PATH=$ORACLE_HOME/lib32
+else
+  export LD_LIBRARY_PATH=$ORACLE_HOME/lib
+  export LIBPATH=$ORACLE_HOME/lib
+  export SHLIB_PATH=$ORACLE_HOME/lib
+fi
+
+USAGE()
+{ echo "    ************************************************************************************"
+  echo "    USAGE: delobj SERVICE_NAME OBJECT_ID R_QUEUE"
+  echo "           SERVICE_NAME : reference to $REALSYNC_BASE/config.srv column 1."
+  echo "           OBJECT_ID    : the number of the object in source database."
+  echo "                          the number can be got selecting from dba_objects."
+  echo "           R_QUEUE      : real queue,reference to cfg.queue (default is 0)."
+  echo "                                          "
+  echo "       SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                         $i"
+  done 
+  echo "    ************************************************************************************"
+}
+
+if [ $# -lt 1 -o $# -gt 3 ]
+then
+  USAGE
+  exit
+fi
+
+SERVICENAME=`grep -w "$1" $REALSYNC_BASE/config.srv`
+if [ -z "$SERVICENAME" -a "$1" != "all" ]
+then
+  echo "Warning: SERVICE_NAME $1 not found in ${REALSYNC_BASE}/config.srv."
+  echo "SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                  $i"
+  done
+  exit
+fi
+
+XLDR_HOME=${REALSYNC_BASE}/xldr/$1
+R_QUEUE=$3
+if [ -z "$R_QUEUE" ]
+then
+    R_QUEUE=0
+fi
+R_QUEUE_T=`[[ $R_QUEUE = *[!0-9]* ]] && echo string || echo digit`
+if [ "$R_QUEUE_T" = "string" ]
+then
+    echo "error R_QUEUE"
+    exit
+fi
+
+SYSTEM_ROLE=`grep -w "$1" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+if [ "$SYSTEM_ROLE" = "TGT" ]
+then
+    STA_SEQ=`cat ${REALSYNC_BASE}/xldr/$1/real${R_QUEUE}/cfg.loaderno | awk '{print $1}'`
+    END_SEQ=`cat ${REALSYNC_BASE}/xldr/$1/real${R_QUEUE}/cfg.loaderno | awk '{print $2}'`
+fi
+if [ "$SYSTEM_ROLE" = "SRC" ]
+then
+    STA_SEQ=`cat ${REALSYNC_BASE}/xldr/$1/2.cfg.senderno | awk '{print $1}'`
+    END_SEQ=`cat ${REALSYNC_BASE}/xldr/$1/2.cfg.senderno | awk '{print $2}'`
+fi
+
+if [ "$2" = "" ]
+then
+  echo "Please input the value of OBJECT:"
+  read $OBJN
+else
+  OBJN=$2
+fi
+
+#do not change it
+SEQ=${STA_SEQ}
+
+cd ${REALSYNC_BASE}/bin/$1
+
+if [ "$SYSTEM_ROLE" = "TGT" ]
+then
+   while  [ ${SEQ} -lt ${END_SEQ} ]
+   do
+     #cp ${XLDR_HOME}/real0/${SEQ}.xf1 ${XLDR_HOME}/real0/${SEQ}.xf1.bak
+     ./xfview -delobj ${OBJN} ${XLDR_HOME}/real${R_QUEUE}/${SEQ}.xf1
+     let SEQ=SEQ+1
+   done
+fi
+
+if [ "$SYSTEM_ROLE" = "SRC" ]
+then
+    while  [ ${SEQ} -lt ${END_SEQ} ]
+    do
+      #cp ${XLDR_HOME}/real0/${SEQ}.xf1 ${XLDR_HOME}/real0/${SEQ}.xf1.bak
+      ./xfview -delobj ${OBJN} ${XLDR_HOME}/2.${SEQ}.xf1
+      let SEQ=SEQ+1
+    done
+fi
+
+echo "Operation Succeed!"
+date
+exit

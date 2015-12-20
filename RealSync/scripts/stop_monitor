@@ -1,0 +1,78 @@
+#!/bin/ksh
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+  cd ..
+  REALSYNC_BASE=`pwd`
+fi
+
+Usage()
+{
+  echo "    ************************************************************************************"
+  echo "    USAGE: stop_monitor SERVICE_NAME "
+  echo "           SERVICE_NAME : please refer to ${REALSYNC_BASE}/config.srv"
+  echo "                                          "
+  echo "       SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                         $i"
+  done 
+  echo "                         all (stop_monitor all)"
+  echo "    ************************************************************************************"
+  exit
+}
+
+if [ $# -lt 1 ]
+then
+  Usage
+fi
+
+SERVICENAME=`grep -w "$1" ${REALSYNC_BASE}/config.srv`
+if [ -z "$SERVICENAME" -a "$1" != "all" ]
+then
+  echo "Warning: SERVICE_NAME $1 not found in ${REALSYNC_BASE}/config.srv."
+  echo "SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                  $i"
+  done
+  echo "                  all (stop_monitor all)"
+  exit
+fi
+
+mnt_stop()
+{
+ MNT_PORT=`grep -w "$1" ${REALSYNC_BASE}/config.srv | awk '{print $5}'`
+ pid=`ps -ef | grep monitor| grep ${MNT_PORT} | grep -v grep | awk '{print $2}'`
+  if [ !  -z "$pid" ]
+  then
+    for p in $pid
+    do
+      kill -9 $p
+    done
+    echo "Monitor with port ${MNT_PORT} Stopped."
+  fi
+
+ pid=`ps -ef | grep -w "$1" | grep x_logger | grep -v grep | awk '{print $2}'`
+  if [ !  -z "$pid" ]
+  then
+    for p in $pid
+    do
+      kill -9 $p
+    done
+    echo "x_logger with $1 Stopped."
+  fi
+}
+
+DB_NAME=$1
+
+if [ "${DB_NAME}" != "all" ]
+then
+  mnt_stop ${DB_NAME}
+else
+  for NAME in `cat ${REALSYNC_BASE}/config.srv |grep -v "#" |grep -v grep | awk '{print $1}'`
+  do
+    mnt_stop ${NAME}
+    sleep 1
+  done
+fi

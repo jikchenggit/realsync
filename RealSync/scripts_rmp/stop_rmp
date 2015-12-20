@@ -1,0 +1,102 @@
+#!/bin/ksh
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+  cd ..
+  REALSYNC_BASE=`pwd`
+fi
+
+Usage()
+{
+  echo "    ************************************************************************************"
+  echo "    USAGE: stop_rmp SERVICE_NAME"
+  echo "           SERVICE_NAME : please refer to ${REALSYNC_BASE}/config.srv"
+  echo "                                          "
+  echo "       SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                         $i"
+  done 
+  echo "                         all (stop all)"
+  echo "    ************************************************************************************"
+  exit
+}
+
+if [ $# -lt 1 -a -z "$SERVICE_NAME" ]
+then
+  Usage
+fi
+
+DB_NAME=""
+if [ ! -z "$SERVICE_NAME" ]
+then
+    DB_NAME=$SERVICE_NAME
+else
+    DB_NAME=$1
+fi
+
+SERVICENAME=`grep -w "$DB_NAME" ${REALSYNC_BASE}/config.srv`
+if [ -z "$SERVICENAME" -a "$DB_NAME" != "all" ]
+then
+  echo "Warning: SERVICE_NAME $DB_NAME not found in ${REALSYNC_BASE}/config.srv."
+  echo "SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                  $i"
+  done
+  echo "                  all (stop all)"
+  exit
+fi
+
+rmp_sender_stop()
+{
+  pid=`ps -ef | grep rmp_sender | grep -w $1 | grep -v grep | awk '{print $2}'`
+  if [ !  -z "$pid" ]
+  then
+    for p in $pid
+    do
+      kill -9 $p
+    done
+    echo "$1 rmp_sender Stopped."
+  fi
+}
+
+rmp_loader_stop()
+{
+  pid=`ps -ef | grep rmp_loader | grep -w $1 | grep -v grep | awk '{print $2}'`
+  if [ !  -z "$pid" ]
+  then
+    for p in $pid
+    do
+      kill -9 $p
+    done
+    echo "$1 rmp_loader Stopped."
+  fi
+}
+
+  if [ "${DB_NAME}" != "all" ]
+  then
+    SYSTEM_ROLE=`grep -w "$DB_NAME" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+    if [ "$SYSTEM_ROLE" = "SRC" ]
+    then
+        rmp_loader_stop $DB_NAME
+    fi
+    if [ "$SYSTEM_ROLE" = "TGT" ]
+    then
+        rmp_sender_stop $DB_NAME
+    fi
+  else
+    for NAME in `cat ${REALSYNC_BASE}/config.srv |grep -v "#" |grep -v grep | awk '{print $1}'`
+    do
+      SYSTEM_ROLE=`grep -w "$NAME" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+      if [ "$SYSTEM_ROLE" = "SRC" ]
+      then
+        rmp_loader_stop $NAME
+      fi
+      if [ "$SYSTEM_ROLE" = "TGT" ]
+      then
+        rmp_sender_stop $NAME
+      fi
+      sleep 2
+    done
+  fi

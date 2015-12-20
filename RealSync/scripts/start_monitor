@@ -1,0 +1,134 @@
+#!/bin/ksh
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+  cd ..
+  REALSYNC_BASE=`pwd`
+fi
+
+if [ -d "$ORACLE_HOME/lib32" ]
+then
+  export LD_LIBRARY_PATH=$ORACLE_HOME/lib32
+  export LIBPATH=$ORACLE_HOME/lib32
+  export SHLIB_PATH=$ORACLE_HOME/lib32
+else
+  export LD_LIBRARY_PATH=$ORACLE_HOME/lib
+  export LIBPATH=$ORACLE_HOME/lib
+  export SHLIB_PATH=$ORACLE_HOME/lib
+fi
+
+Usage()
+{
+  echo "    ************************************************************************************"
+  echo "    USAGE: start_monitor SERVICE_NAME "
+  echo "           SERVICE_NAME : please refer to ${REALSYNC_BASE}/config.srv"
+  echo "                                          "
+  echo "       SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                         $i"
+  done 
+  echo "                         all (start_monitor all)"
+  echo "    ************************************************************************************"
+  exit
+}
+
+if [ $# -lt 1 ]
+then
+  Usage
+fi
+
+SERVICENAME=`grep -w "$1" ${REALSYNC_BASE}/config.srv`
+if [ -z "$SERVICENAME" -a "$1" != "all" ]        
+then
+  echo "Warning: SERVICE_NAME $1 not found in ${REALSYNC_BASE}/config.srv."
+  echo "SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                  $i"
+  done
+  echo "                  all (start_monitor all)"
+  exit
+fi
+
+start_mnt()
+{
+  export VCFS_HOME=${REALSYNC_BASE}/vcfsa/$1
+  export XLDR_HOME=${REALSYNC_BASE}/xldr/$1
+  export DBPS_HOME=${REALSYNC_BASE}/dbps/$1/monitor
+  export XMON_CHECK_BIN=${REALSYNC_BASE}/bin/$1
+  export SERVICE_NAME=$1
+  export REALSYNC_BASE=${REALSYNC_BASE}
+  if [ -f ${REALSYNC_BASE}/config/$1/check_process.ini ]
+  then
+      ROLE_TYPE=`grep -w "${1}" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+      DBPSD_PORT=`grep -w "${1}" ${REALSYNC_BASE}/config.srv | awk '{print $2}'`
+      AGN_PORT=`grep -w "${1}" ${REALSYNC_BASE}/config.srv | awk '{print $3}'`
+      if [ "$ROLE_TYPE" = "SRC" ]
+      then
+          echo "AGN_PORT=${AGN_PORT}" > ${REALSYNC_BASE}/config/$1/check_process.ini
+          echo "DBPSD_PORT=${DBPSD_PORT}" >> ${REALSYNC_BASE}/config/$1/check_process.ini
+          echo "DBPSD_CNT=1" >> ${REALSYNC_BASE}/config/$1/check_process.ini
+          echo "AGN_CNT=2" >> ${REALSYNC_BASE}/config/$1/check_process.ini
+          echo "SENDER_CNT=2" >> ${REALSYNC_BASE}/config/$1/check_process.ini
+      else
+          echo "TAGN_PORT=${AGN_PORT}" > ${REALSYNC_BASE}/config/$1/check_process.ini
+          echo "TAGN_CNT=2" >> ${REALSYNC_BASE}/config/$1/check_process.ini
+          S_CNT=`cat ${REALSYNC_BASE}/config/$1/config.dsg |grep LOADER_PARALLEL |awk -F= '{print $2}'`
+          if [ -z "${S_CNT}" ]
+          then
+              S_CNT=1
+          fi
+          R_CNT=`cat ${REALSYNC_BASE}/config/$1/config.dsg |grep LOADER_R_PARALLEL |awk -F= '{print $2}'`
+          if [ -z "${R_CNT}" ]
+          then
+              R_CNT=1
+          fi
+          let LOADER_S_CNT=S_CNT+S_CNT
+          let LOADER_R_CNT=R_CNT+R_CNT
+          echo "LOADER_S_CNT=${LOADER_S_CNT}" >> ${REALSYNC_BASE}/config/$1/check_process.ini
+          echo "LOADER_R_CNT=${LOADER_R_CNT}" >> ${REALSYNC_BASE}/config/$1/check_process.ini
+      fi
+  fi
+  nohup ${REALSYNC_BASE}/bin/$1/x_monitor $2 > ${REALSYNC_BASE}/log/$1/log.monitor 2>&1 &
+  export XLOGGER=Y
+  nohup ${REALSYNC_BASE}/bin/$1/x_logger &  
+  if [ -f ${REALSYNC_BASE}/log/$1/log.send0 ]
+  then
+      ln -s ${REALSYNC_BASE}/log/$1/log.send0 ${REALSYNC_BASE}/log/$1/log.sender
+  fi
+}
+
+DB_NAME=$1
+
+if [ "${DB_NAME}" != "all" ]
+then
+  MNT_PORT=`grep -w "${DB_NAME}" ${REALSYNC_BASE}/config.srv | awk '{print $5}'`
+  pid=`ps -ef | grep x_monitor | grep ${MNT_PORT} | grep -v grep | awk '{print $2}'`
+   if [ -z "$pid" ]
+   then
+      start_mnt $DB_NAME ${MNT_PORT}
+      echo "Monitor with port ${MNT_PORT} Started."
+      sleep 1
+      ps -ef | grep x_monitor | grep -w "$DB_NAME"
+      ps -ef | grep x_logger | grep -w "$DB_NAME"
+   else
+       echo "INFORMANTION: another x_monitor with port ${MNT_PORT} is running."
+   fi
+else
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+    MNT_PORT=`grep -w "$i" ${REALSYNC_BASE}/config.srv | awk '{print $5}'`
+    pid=`ps -ef | grep x_monitor | grep ${MNT_PORT} | grep -v grep | awk '{print $2}'`
+    if [ -z "$pid" ]
+    then
+      start_mnt $i ${MNT_PORT}
+      echo "Monitor with port ${MNT_PORT} Started."
+      sleep 1
+      ps -ef | grep x_monitor | grep -w "$i"
+      ps -ef | grep x_logger | grep -w "$i"
+    else
+       echo "INFORMANTION: another x_monitor with port ${MNT_PORT} is running."
+    fi
+  done
+fi

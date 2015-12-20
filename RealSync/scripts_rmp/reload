@@ -1,0 +1,81 @@
+#!/bin/ksh
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+  cd ..
+  REALSYNC_BASE=`pwd`
+fi
+
+if [ -d "$ORACLE_HOME/lib32" ]
+then
+  export LD_LIBRARY_PATH=$ORACLE_HOME/lib32
+  export LIBPATH=$ORACLE_HOME/lib32
+  export SHLIB_PATH=$ORACLE_HOME/lib32
+else
+  export LD_LIBRARY_PATH=$ORACLE_HOME/lib
+  export LIBPATH=$ORACLE_HOME/lib
+  export SHLIB_PATH=$ORACLE_HOME/lib
+fi
+
+Usage()
+{
+  echo "    ************************************************************************************"
+  echo "    USAGE : reload SERVICE_NAME"
+  echo "            SERVICE_NAME: Please refer to $REALSYNC_BASE/config.srv"
+  echo "                                          "
+  echo "       SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                         $i"
+  done 
+  echo "    ************************************************************************************"
+}
+
+if [ $# -ne 1 ]
+then
+  Usage
+  exit
+fi  
+
+SERVICENAME=`grep -w "$1" $REALSYNC_BASE/config.srv`
+if [ -z "$SERVICENAME" ]
+then
+  echo "Warning: SERVICE_NAME $1 not found in ${REALSYNC_BASE}/config.srv."
+  echo "SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                  $i"
+  done
+  exit
+fi
+
+SYSTEM_ROLE=`grep -w "$1" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+
+if [ "$SYSTEM_ROLE" = "TGT" ]
+then
+    echo "Error Operated!"
+    echo "Please start reload on Source host."
+    exit
+fi
+
+SERVER_IP=`grep SVR_IP ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+SERVER_LOGIN=`grep VMANLOGON ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+
+SVR_NAME=$1
+SVR_PORT=`grep -w "$1" ${REALSYNC_BASE}/config.srv | awk '{print $2}'`
+
+if [ "${SVR_NAME}" != "all" ]
+then
+  cd ${REALSYNC_BASE}/bin/${SVR_NAME}
+./vman  >> ${REALSYNC_BASE}/log/${SVR_NAME}/log.load <<EOF
+connect ${SERVER_IP}:${SVR_PORT}
+user ${SERVER_LOGIN}
+@${REALSYNC_BASE}/config/${SVR_NAME}/dsdt.vm
+@${REALSYNC_BASE}/config/${SVR_NAME}/config.vm
+exit
+EOF
+  echo "Data replication finished."
+else
+  echo "Please select one of the service names to run."
+fi
+exit

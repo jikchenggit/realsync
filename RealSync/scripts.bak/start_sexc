@@ -1,0 +1,123 @@
+#!/bin/ksh
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+  cd ..
+  REALSYNC_BASE=`pwd`
+fi
+
+if [ -d "$ORACLE_HOME/lib32" ]
+then
+  export LD_LIBRARY_PATH=$ORACLE_HOME/lib32
+  export LIBPATH=$ORACLE_HOME/lib32
+  export SHLIB_PATH=$ORACLE_HOME/lib32
+else
+  export LD_LIBRARY_PATH=$ORACLE_HOME/lib
+  export LIBPATH=$ORACLE_HOME/lib
+  export SHLIB_PATH=$ORACLE_HOME/lib
+fi
+
+Usage()
+{
+  echo "    ************************************************************************************"
+  echo "    USAGE: start_sexc SERVICE_NAME"
+  echo "           SERVICE_NAME : please refer to ${REALSYNC_BASE}/config.srv"
+  echo "                                          "
+  echo "       SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                         $i"
+  done 
+  echo "    ************************************************************************************"
+  exit
+}
+
+if [ $# -lt 1 ]
+then
+  Usage
+fi
+
+DB_NAME=""
+if [ ! -z "$SERVICE_NAME" ]
+then
+    DB_NAME=$SERVICE_NAME
+else
+    DB_NAME=$1
+fi
+
+SERVICENAME=`grep -w "$DB_NAME" ${REALSYNC_BASE}/config.srv`
+if [ -z "$SERVICENAME" -a "$DB_NAME" != "all" ]        
+then
+  echo "Warning: SERVICE_NAME $DB_NAME not found in ${REALSYNC_BASE}/config.srv."
+  echo "SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                  $i"
+  done
+  exit
+fi
+
+if [ ! -f "$REALSYNC_BASE/config/$DB_NAME/check_sql.conf" ]
+then
+       echo "not found $REALSYNC_BASE/config/$DB_NAME/check_sql.conf,please set check_sql.conf."
+       exit
+fi
+
+if [ ! -d "$REALSYNC_BASE/config/$DB_NAME/check_sql" ]
+then
+       mkdir "$REALSYNC_BASE/config/$DB_NAME/check_sql" 
+fi
+
+cd $REALSYNC_BASE/bin/$DB_NAME
+./sexc $REALSYNC_BASE/config/$DB_NAME/check_sql.conf $REALSYNC_BASE/config/$DB_NAME/mapping.ini $REALSYNC_BASE/config/$DB_NAME/check_sql
+
+echo ""
+echo "ls -l $REALSYNC_BASE/config/$DB_NAME/check_sql"
+ls -l $REALSYNC_BASE/config/$DB_NAME/check_sql |grep -v log
+
+
+TMP_SQL_DIR=`pwd` 
+SQLPLUS=$ORACLE_HOME/bin/sqlplus
+USERNAME=`grep SOURCE_DB_USER $REALSYNC_BASE/config/$DB_NAME/config.dsg | awk -F= '{print $2}'`
+PASSWORD=`grep SOURCE_DB_PSWD $REALSYNC_BASE/config/$DB_NAME/config.dsg | awk -F= '{print $2}'`
+ALERT_LOG=$REALSYNC_BASE/config/$DB_NAME/check_sql.log
+
+runSql(){
+  SqlFile=$1
+  LogFile=`echo $1 |awk -F. '{print $1}'`".log"
+  echo "runSql $SqlFile Start "`date  +%Y%m%d%H%M%S`"  Pleas wait .." >> $ALERT_LOG
+$SQLPLUS -s $USERNAME/$PASSWORD <<EOF > $LogFile 
+set linesize 120 feedback off pagesize 0 
+alter session set nls_date_format='yyyymmdd hh24:mi:ss';
+set time on timing on
+@$SqlFile
+/
+
+EOF
+  echo "runSql $SqlFile End "`date  +%Y%m%d%H%M%S` >> $ALERT_LOG
+  echo $1" "`grep Elapsed $LogFile`
+}
+
+runSqlForPlan(){
+  SqlFile=$1
+  LogFile=`echo $1 |awk -F. '{print $1}'`"_plan.log"
+  echo "runSqlForPlan $SqlFile For Plan Start "`date  +%Y%m%d%H%M%S`"  Pleas wait .." >> $ALERT_LOG
+$SQLPLUS -s $USERNAME/$PASSWORD <<EOF  > $LogFile
+set linesize 120 feedback off pagesize 0 
+alter session set nls_date_format='yyyymmdd hh24:mi:ss';
+set autotrace traceonly
+set time on timing on
+@$SqlFile
+/
+
+EOF
+  echo "runSqlForPlan $SqlFile For Plan End "`date  +%Y%m%d%H%M%S` >> $ALERT_LOG
+}
+
+SqlFiles=`ls $REALSYNC_BASE/config/$DB_NAME/check_sql/*.sql`
+for i in $SqlFiles
+do
+   runSql $i
+   runSqlForPlan $i
+done
+

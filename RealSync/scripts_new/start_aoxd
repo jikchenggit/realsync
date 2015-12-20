@@ -1,0 +1,53 @@
+#!/bin/ksh
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+  cd ..
+  REALSYNC_BASE=`pwd`
+fi
+
+#export ASM_CONF_FILENAME=$REALSYNC_BASE/aoxd/asm.conf
+
+OXAD_IP=127.0.0.1
+OXAD_PORT=
+
+start_oxad()
+{
+  nohup $REALSYNC_BASE/aoxd/oxad -startup -n $OXAD_IP:$OXAD_PORT -blen 30M >> ${REALSYNC_BASE}/aoxd/log/log.oxad 2>&1 &
+  sleep 1
+
+  pid=`ps -ef |grep oxad |grep -v grep |grep $OXAD_PORT | awk '{print $2}'`
+  if [ ! -z $pid ]
+  then
+      echo "Oxad with port $OXAD_PORT Started."
+      ps -ef |grep oxad |grep -v grep |grep $OXAD_PORT
+  fi
+}
+
+start_aoxd()
+{
+  nohup $REALSYNC_BASE/aoxd/aoxd -parfile $REALSYNC_BASE/aoxd/aoxd.ini >> $REALSYNC_BASE/aoxd/log/log.aoxd 2>&1 &
+  pid=`ps -ef |grep aoxd |grep -v grep | awk '{print $2}'`
+  if [ ! -z $pid ]
+  then
+      echo "Aoxd was Started."
+      ps -ef |grep aoxd |grep -v grep 
+  fi
+}
+
+
+pid_oxad=`ps -ef |grep oxad |grep -v grep |grep $OXAD_PORT |wc -l`
+if [ $pid_oxad -ge 1 ]
+then
+    echo "INFORMANTION: another oxad with port $OXAD_PORT is running."
+    exit
+fi
+start_oxad
+
+pid_aoxd=`ps -ef |grep aoxd |grep -v grep |wc -l`
+if [ $pid_aoxd -ge 1 ]
+then
+    echo "INFORMANTION: another aoxd is running."
+    exit
+fi
+start_aoxd

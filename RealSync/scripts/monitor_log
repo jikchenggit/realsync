@@ -1,0 +1,620 @@
+#!/bin/ksh
+
+M_PROCESS=N   #monitor sync process,Y or N (default N)
+CHK_LOG=N     #check sync log,Y or N (default Y)
+M_LOG=Y       #monitor sync log,Y or N (default Y)
+W_DB=N        #write monitor information to database,Y or N (default N)
+W_FILE=Y      #write monitor information to file,Y or N (default Y)
+M_DELAY_TIME=N             #monitor realsync delay time (default N)
+LOGIN_USER_PWD="dsg/dsg"   #database login user and password
+ERR_LINES=10               #get err log lines
+RESERVE_DAYS=100           #reserver err log days (default is 100 days)
+REFRESH_OUTPUT=Y            #refresh output info
+TAIL_LINE=5                #tail display lines
+DIFF_TIME=0
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+  cd ..
+  REALSYNC_BASE=`pwd`
+fi
+
+if [ $# -lt 1 -o "$1" = "auto" ]
+then
+    SERVICE_NAME="all"
+else
+    SERVICE_NAME="$1"
+fi
+
+if [ "$1" = "auto" ]
+then
+    AUTO=Y
+else
+    AUTO=N
+fi
+
+S_NAME=`grep -w "$SERVICE_NAME" ${REALSYNC_BASE}/config.srv`
+if [ -z "$S_NAME" -a "$SERVICE_NAME" != "all" ]        
+then
+  echo "Warning: SERVICE_NAME $SERVICE_NAME not found in ${REALSYNC_BASE}/config.srv."
+  echo "SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                  $i"
+  done
+  echo "                  all (monitor all)"
+  exit
+fi
+
+w_db()
+{
+ ERR_NUM=$4
+ let B_NUM=ERR_NUM-ERR_LINES
+ let E_NUM=ERR_NUM+ERR_LINES
+ sed -n ''$B_NUM','${E_NUM}'p' $3 > .log_err
+sqlplus -s $LOGIN_USER_PWD >>.log_sqlplus<<EOF
+declare
+    new_id number;
+begin
+    delete from dsg.monitor_tabs where err_time<(sysdate-$RESERVE_DAYS);
+    commit;
+    select decode(max(id),null,1,max(id)+1) into new_id from dsg.monitor_tabs;
+    insert into dsg.monitor_tabs (id,service_name,log_path,err_type,err_time,err_msg)
+    values (new_id,'$1','$3','$2',sysdate,null);
+    commit;
+end;
+/
+EOF
+
+E_CNT=`cat .log_err |wc -l`
+B_CNT=1
+while [ $B_CNT -le $E_CNT ]
+do
+E_CON=`sed -n ''$B_CNT'p' .log_err`
+sqlplus -s $LOGIN_USER_PWD >>.log_sqlplus <<EOF
+declare
+v_id number;
+begin
+select max(id) into v_id from dsg.monitor_tabs;
+update dsg.monitor_tabs set err_msg=err_msg||chr(10)||'$E_CON' where id=v_id;
+commit;
+end;
+/
+EOF
+let B_CNT=B_CNT+1
+done
+}
+
+m_delay_time()
+{
+if [ "$4" != "NULL" -a "$5" != "NULL" ]
+then
+sqlplus -s $LOGIN_USER_PWD >>.log_sqlplus<<EOF
+ insert into dsg.delay_time_tabs (service_name,queue_name,check_time,xf1_cache_count,delay_time,src_scn_time)
+ values ('$1','$2',sysdate,$3,$4,to_date('$5','YYYY-MM-DDHH24:MI:SS'));
+ commit;
+EOF
+else
+sqlplus -s $LOGIN_USER_PWD >>.log_sqlplus<<EOF
+ insert into dsg.delay_time_tabs (service_name,queue_name,check_time,xf1_cache_count,delay_time,src_scn_time)
+ values ('$1','$2',sysdate,$3,null,null);
+ commit;
+EOF
+fi
+}
+
+m_delay_his_time()
+{
+sqlplus -s $LOGIN_USER_PWD >>.log_sqlplus<<EOF
+ insert into dsg.delay_time_his_tabs select * from dsg.delay_time_tabs;
+ commit;
+ truncate table dsg.delay_time_tabs;
+EOF
+}
+
+chk_src_log()
+{
+  chk_agn()
+  {
+   if [ ! -f "$REALSYNC_BASE/log/$1/.log_agnrow" ]
+   then
+       echo "0" > $REALSYNC_BASE/log/$1/.log_agnrow
+   fi
+   LAST_ROW=`cat $REALSYNC_BASE/log/$1/.log_agnrow |awk '{print $1}'`
+   NOW_ROW=`cat $REALSYNC_BASE/log/$1/log.vagentd |wc -l`
+   CHECK_ROW=0
+   if [ $LAST_ROW -gt $NOW_ROW ]
+   then
+       let CHECK_ROW=NOW_ROW
+   else
+       let CHECK_ROW=NOW_ROW-LAST_ROW
+   fi
+   COUNT=0
+   CON_ERR=""
+   for i in "Restarting" "Log not found" "Invalid" "ORA-" "retry" "Reconnect"
+   do
+     AGN_ERR=`tail -${CHECK_ROW} $REALSYNC_BASE/log/$1/log.vagentd |grep "$i" |wc -l`
+     let COUNT=COUNT+AGN_ERR
+     if [ $AGN_ERR -gt 0 ]
+     then
+         if [ "$CON_ERR" = "" ]
+         then
+             CON_ERR="$i"
+         else
+             CON_ERR="${CON_ERR},$i"
+         fi
+         if [ "$W_DB" = "Y" ]
+         then
+             LOG_PATH="$REALSYNC_BASE/log/$1/log.vagentd"
+             ERR_NUM=`sed -n '/'$i'/=' $LOG_PATH|tail -1`
+             w_db $1 $i $LOG_PATH $ERR_NUM
+         fi
+     fi
+   done
+   DATE=`date "+%Y-%m-%d %H:%M:%S"`
+   LOG_PATH="$REALSYNC_BASE/log/$1/log.vagentd"
+   if [ "$CON_ERR" != "" ]
+   then
+       echo " $1     $DATE     Err:$CON_ERR($COUNT)     $LOG_PATH" >> $REALSYNC_BASE/log/log.monitor
+       echo " $1     $DATE     Err:$CON_ERR($COUNT)     $LOG_PATH"
+   fi
+   echo "$NOW_ROW" > $REALSYNC_BASE/log/$1/.log_agnrow
+  }
+  chk_snd()
+  {
+   if [ ! -f "$REALSYNC_BASE/log/$1/.log_sndrow" ]
+   then
+        echo "0" > $REALSYNC_BASE/log/$1/.log_sndrow
+   fi
+   LAST_ROW=`cat $REALSYNC_BASE/log/$1/.log_sndrow |awk '{print $1}'`
+   NOW_ROW=`cat $REALSYNC_BASE/log/$1/log.send0 |wc -l`
+   CHECK_ROW=0
+   if [ $LAST_ROW -gt $NOW_ROW ]
+   then
+       let CHECK_ROW=NOW_ROW
+   else
+       let CHECK_ROW=NOW_ROW-LAST_ROW
+   fi
+   COUNT=0
+   CON_ERR=""
+   for i in "ORA-" "retry" "Invalid" "Reconnect"
+   do
+     SEND_ERR=`tail -${CHECK_ROW} $REALSYNC_BASE/log/$1/log.send0 |grep "$i" |wc -l`
+     let COUNT=COUNT+SEND_ERR
+     if [ $SEND_ERR -gt 0 ]
+     then
+         if [ "$CON_ERR" = "" ]
+         then
+             CON_ERR="$i"
+         else
+             CON_ERR="${CON_ERR},$i"
+         fi
+         if [ "$W_DB" = "Y" ]
+         then
+             LOG_PATH="$REALSYNC_BASE/log/$1/log.send0"
+             ERR_NUM=`sed -n '/'$i'/=' $LOG_PATH|tail -1`
+             w_db $1 $i $LOG_PATH $ERR_NUM
+         fi
+     fi
+   done
+   DATE=`date "+%Y-%m-%d %H:%M:%S"`
+   LOG_PATH="$REALSYNC_BASE/log/$1/log.send0"
+   if [ "$CON_ERR" != "" ]
+   then
+       echo " $1     $DATE     Err:$CON_ERR($COUNT)     $LOG_PATH" >> $REALSYNC_BASE/log/log.monitor
+       echo " $1     $DATE     Err:$CON_ERR($COUNT)     $LOG_PATH"
+   fi
+   echo "$NOW_ROW" > $REALSYNC_BASE/log/$1/.log_sndrow
+  }
+  chk_agn $*
+  chk_snd $*
+}
+
+chk_tgt_log()
+{
+  chk_load_s()
+  {
+   S_NUM=`grep LOADER_PARALLEL $REALSYNC_BASE/config/$1/config.dsg |awk -F= '{print $2}'`
+   if [ -z "${S_NUM}" ]
+   then
+       S_NUM=1
+   fi
+   S_CNT=0
+   while [ ${S_CNT} -lt ${S_NUM} ]
+   do
+     if [ -f "$REALSYNC_BASE/xldr/$1/sync${S_CNT}/cfg.loaderno" ]
+     then
+         NUM1=`cat $REALSYNC_BASE/xldr/$1/sync${S_CNT}/cfg.loaderno |awk '{print $1}'`
+         NUM2=`cat $REALSYNC_BASE/xldr/$1/sync${S_CNT}/cfg.loaderno |awk '{print $2}'`
+     else
+         NUM1=0
+         NUM2=0
+     fi
+     COUNT=0
+     CON_ERR=""
+     if [  $NUM1 != $NUM2 ]
+     then
+         for i in "ORA-" "retry" "Only" "Err" 
+         do
+           if [ "$i" = "retry" ]
+           then
+               S_ERR=`tail -${CHECK_ROW} $REALSYNC_BASE/log/$1/log.s${S_CNT} |grep -w "$i" |wc -l`
+           else
+               S_ERR=`tail -${CHECK_ROW} $REALSYNC_BASE/log/$1/log.s${S_CNT} |grep "$i" |wc -l`
+           fi 
+           let COUNT=COUNT+S_ERR
+           if [ $S_ERR -gt 0 ]
+           then
+               if [ "$CON_ERR" = "" ]
+               then
+                   CON_ERR="$i"
+               else
+                   CON_ERR="${CON_ERR},$i"
+               fi
+           fi
+           if [ "$W_DB" = "Y" ]
+           then
+               LOG_PATH="$REALSYNC_BASE/log/$1/log.s${S_CNT}"
+               ERR_NUM=`sed -n '/'$i'/=' $LOG_PATH|tail -1`
+               #w_db $1 $i $LOG_PATH $ERR_NUM
+           fi
+         done
+         DATE=`date "+%Y-%m-%d %H:%M:%S"`
+         LOG_PATH="$REALSYNC_BASE/log/$1/log.s${S_CNT}"
+         if [ "$CON_ERR" != "" ]
+         then
+             echo " $1     $DATE     Err:$CON_ERR($COUNT)     $LOG_PATH" >> $REALSYNC_BASE/log/log.monitor
+             echo " $1     $DATE     Err:$CON_ERR($COUNT)     $LOG_PATH" 
+         fi
+     fi
+     let S_CNT=S_CNT+1
+   done
+  }
+  chk_load_r()
+  {
+   R_NUM=`grep LOADER_R_PARALLEL $REALSYNC_BASE/config/$1/config.dsg |awk -F= '{print $2}'`
+   if [ -z "${R_NUM}" ]
+   then
+       R_NUM=1
+   fi
+   R_CNT=0
+   if [ -f "$REALSYNC_BASE/xldr/$1/cfg.sync" ]
+   then
+       S_CNT=`cat $REALSYNC_BASE/xldr/$1/cfg.sync |awk '{print $1}'`
+   else
+       S_CNT=1
+   fi
+   if [ $S_CNT -eq 0 ]
+   then
+       while [ ${R_CNT} -lt ${R_NUM} ]
+       do
+         if [ ! -f "$REALSYNC_BASE/log/$1/.log_loadrow${R_CNT}" ]
+         then
+             echo "0" > $REALSYNC_BASE/log/$1/.log_loadrow${R_CNT}
+         fi
+         LAST_ROW=`cat $REALSYNC_BASE/log/$1/.log_loadrow${R_CNT} |awk '{print $1}'`
+         NOW_ROW=`cat $REALSYNC_BASE/log/$1/log.r${R_CNT} |wc -l`
+         CHECK_ROW=0
+         if [ $LAST_ROW -gt $NOW_ROW ]
+         then
+             let CHECK_ROW=NOW_ROW
+         else
+             let CHECK_ROW=NOW_ROW-LAST_ROW
+         fi	
+         COUNT=0
+         CON_ERR=""
+         for i in "ORA-" "retry" "Invalid" "Err" "Info"
+         do
+           if [ "$i" = "retry" ]
+           then
+               R_ERR=`tail -${CHECK_ROW} $REALSYNC_BASE/log/$1/log.r${R_CNT} |grep -w "$i" |wc -l`
+           else
+               R_ERR=`tail -${CHECK_ROW} $REALSYNC_BASE/log/$1/log.r${R_CNT} |grep "$i" |wc -l`
+           fi
+           let COUNT=COUNT+R_ERR
+           if [ $R_ERR -gt 0 ]
+           then
+               if [ "$CON_ERR" = "" ]
+               then
+                   CON_ERR="$i"
+               else
+                   CON_ERR="${CON_ERR},$i"
+               fi
+               if [ "$W_DB" = "Y" ]
+               then
+                   LOG_PATH="$REALSYNC_BASE/log/$1/log.r${R_CNT}"
+                   ERR_NUM=`sed -n '/'$i'/=' $LOG_PATH|tail -1`
+                   w_db $1 $i $LOG_PATH $ERR_NUM
+               fi
+           fi
+         done
+         if [ "$M_DELAY_TIME" = "Y" ]
+         then
+             NUM1=`cat $REALSYNC_BASE/xldr/$1/real${R_CNT}/cfg.loaderno |awk '{print $1}'`
+             NUM2=`cat $REALSYNC_BASE/xldr/$1/real${R_CNT}/cfg.loaderno |awk '{print $2}'`
+             let XF1_CACHE_CNT=NUM2-NUM1
+             DELAY_TIME=`grep DDL $REALSYNC_BASE/log/$1/log.r${R_CNT} |grep -v Load |tail -1 |awk '{print $7}' |awk -F"(" '{print $2}'` 
+             if [ "$DELAY_TIME" = "" ]
+             then
+                 DELAY_TIME="NULL"
+             else
+                 let DELAY_TIME=DELAY_TIME+DIFF_TIME
+             fi
+             SRC_TIME=`grep commit $REALSYNC_BASE/log/$1/log.r${R_CNT} |grep Load |tail -1 |awk '{print $12""$13}'`
+             if [ "$SRC_TIME" = "" ]
+             then
+                 SRC_TIME="NULL"
+             fi
+             m_delay_time $1 "r"$R_CNT $XF1_CACHE_CNT $DELAY_TIME $SRC_TIME
+         fi
+         DATE=`date "+%Y-%m-%d %H:%M:%S"`
+         LOG_PATH="$REALSYNC_BASE/log/$1/log.r${R_CNT}"
+         if [ "$CON_ERR" != "" ]
+         then
+             echo " $1     $DATE     Err:$CON_ERR($COUNT)     $LOG_PATH" >> $REALSYNC_BASE/log/log.monitor
+             echo " $1     $DATE     Err:$CON_ERR($COUNT)     $LOG_PATH" 
+         fi
+         echo "$NOW_ROW" > $REALSYNC_BASE/log/$1/.log_loadrow${R_CNT}
+         let R_CNT=R_CNT+1
+       done
+   fi
+  }
+  chk_load_s $*
+  chk_load_r $*
+}
+
+m_src_log()
+{
+  echo "################################## monitor $1 src log ##################################"
+  m_agn()
+  {
+   echo "tail -10 $REALSYNC_BASE/log/$1/log.vagentd"
+   tail -10 $REALSYNC_BASE/log/$1/log.vagentd
+   echo ""
+   sleep 2
+  }
+  m_send()
+  {
+   if [ -f "$REALSYNC_BASE/xldr/$1/2.cfg.senderno" ]
+   then
+       NUM1=`cat $REALSYNC_BASE/xldr/$1/2.cfg.senderno |awk '{print $1}'`
+       NUM2=`cat $REALSYNC_BASE/xldr/$1/2.cfg.senderno |awk '{print $2}'`
+       let NUM=NUM2-NUM1
+       echo "sender xf1 cache: ${NUM2} - ${NUM1} = ${NUM}"
+   fi
+   echo "tail -6 $REALSYNC_BASE/log/$1/log.send0"
+   tail -6 $REALSYNC_BASE/log/$1/log.send0
+   echo ""
+  }
+  m_agn $*
+  m_send $*
+  echo "########################################## $1 ##########################################"
+  echo ""
+  sleep 2
+}
+
+m_tgt_log()
+{
+ echo "################################## monitor $1 tgt log ##################################"
+ m_load_s()
+ {
+  S_NUM=`grep LOADER_PARALLEL $REALSYNC_BASE/config/$1/config.dsg |awk -F= '{print $2}'`
+  if [ -z "${S_NUM}" ]
+  then
+      S_NUM=1
+  fi
+  S_CNT=0
+  while [ ${S_CNT} -lt ${S_NUM} ]
+  do
+    if [ ! -f "$REALSYNC_BASE/xldr/$1/sync${S_CNT}/cfg.loaderno" ]
+    then
+        let S_CNT=S_CNT+1
+        continue
+    fi
+    NUM1=`cat $REALSYNC_BASE/xldr/$1/sync${S_CNT}/cfg.loaderno |awk '{print $1}'`
+    NUM2=`cat $REALSYNC_BASE/xldr/$1/sync${S_CNT}/cfg.loaderno |awk '{print $2}'`
+    let NUM=NUM2-NUM1
+    echo "loader s${S_CNT}:"
+    echo "loader xf1 cache : ${NUM2} - ${NUM1} = ${NUM}"
+    echo ""
+    echo "tail -${TAIL_LINE} $REALSYNC_BASE/log/$1/log.s${S_CNT}"
+    tail -${TAIL_LINE} $REALSYNC_BASE/log/$1/log.s${S_CNT}
+    echo ""
+    let S_CNT=S_CNT+1
+    sleep 2
+  done
+ }
+ m_load_r()
+ {
+  R_NUM=`grep LOADER_R_PARALLEL $REALSYNC_BASE/config/$1/config.dsg |awk -F= '{print $2}'`
+  if [ -z "${R_NUM}" ]
+  then
+      R_NUM=1
+  fi
+  R_CNT=0
+  while [ ${R_CNT} -lt ${R_NUM} ]
+  do
+    if [ ! -f "$REALSYNC_BASE/xldr/$1/real${R_CNT}/cfg.loaderno" ]
+    then
+        let R_CNT=R_CNT+1
+        continue
+    fi
+    NUM1=`cat $REALSYNC_BASE/xldr/$1/real${R_CNT}/cfg.loaderno |awk '{print $1}'`
+    NUM2=`cat $REALSYNC_BASE/xldr/$1/real${R_CNT}/cfg.loaderno |awk '{print $2}'`
+    DELAY_TIME=`grep DDL $REALSYNC_BASE/log/$1/log.r${R_CNT} |grep -v Load |tail -1 |awk '{print $7}' |awk -F"(" '{print $2}'`
+    let NUM=NUM2-NUM1
+    echo "loader r${R_CNT}:"
+    echo "loader xf1 cache : ${NUM2} - ${NUM1} = ${NUM}"
+    echo "delay time :${DELAY_TIME}S" 
+    echo ""
+    echo "tail -${TAIL_LINE} $REALSYNC_BASE/log/$1/log.r${R_CNT}"
+    tail -${TAIL_LINE} $REALSYNC_BASE/log/$1/log.r${R_CNT}
+    echo ""
+    let R_CNT=R_CNT+1
+    sleep 2
+  done
+ }
+ if [ -f "$REALSYNC_BASE/xldr/$1/cfg.sync" ]
+ then
+     S_XF1_SUM=`cat $REALSYNC_BASE/xldr/$1/cfg.sync |awk '{print $1}'`
+ fi
+ if [ "$S_XF1_SUM" != "0" ]
+ then
+     m_load_s $*
+ else
+     m_load_r $*
+ fi
+ echo "########################################## $1 ##########################################"
+ echo ""
+ sleep 2
+}
+
+m_src_process()
+{
+  echo "################################## monitor $1 src process ##################################"
+  cd ${REALSYNC_BASE}/scripts
+  CHK_AGN=`./check $1 |grep vagentd |grep -v grep |wc -l`
+  CHK_SND=`./check $1 |grep sender  |grep -v grep |wc -l`
+  if [ $CHK_AGN -eq 0 ]
+  then
+      echo "WARNING:source $1 agentd was stop."
+  fi
+  if [ $CHK_SND -eq 0 ]
+  then
+      echo "WARNING:source $1 sender was stop."
+  fi
+  echo "########################################## $1 ##############################################"
+  echo ""
+}
+
+m_tgt_process()
+{
+  echo "################################## monitor $1 tgt process ##################################"
+  cd ${REALSYNC_BASE}/scripts
+  CHK_AGN=`./check $1 |grep vagentd |grep -v grep |wc -l`
+  CHK_LOAD_S=`./check $1 |grep "loader -s"  |grep -v grep |wc -l`
+  CHK_LOAD_R=`./check $1 |grep "loader -r"  |grep -v grep |wc -l`
+  if [ $CHK_AGN -eq 0 ]
+  then
+      echo "WARNING:target $1 agentd was stop."
+  fi
+  if [ $CHK_LOAD_S -eq 0 ]
+  then
+      echo "WARNING:target $1 loader -s was stop."
+  fi
+  if [ $CHK_LOAD_R -eq 0 ]
+  then
+      echo "WARNING:target $1 loader -r was stop."
+  fi
+  echo "########################################## $1 ##############################################"
+  echo ""
+}
+
+
+chk_log()
+{
+  if [ "$SERVICE_NAME" = "all" ]
+  then
+      if [ "$M_DELAY_TIME" = "Y" ]
+      then
+          m_delay_his_time
+      fi
+      for j in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+      do
+        ROLE_TYPE=`grep -w "${j}" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+        if [ "${ROLE_TYPE}" = "SRC" ]
+        then
+            chk_src_log $j
+        else
+            chk_tgt_log $j
+        fi
+      done
+  else
+      ROLE_TYPE=`grep -w "${SERVICE_NAME}" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+      if [ "${ROLE_TYPE}" = "SRC" ]
+      then
+          chk_src_log $SERVICE_NAME
+      else
+          chk_tgt_log $SERVICE_NAME
+      fi
+  fi
+}
+
+m_log()
+{
+  if [ "$SERVICE_NAME" = "all" ]
+  then
+      for j in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+      do
+        ROLE_TYPE=`grep -w "${j}" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+        if [ "${ROLE_TYPE}" = "SRC" ]
+        then
+            m_src_log $j
+        else
+            m_tgt_log $j
+        fi
+      done
+  else
+      ROLE_TYPE=`grep -w "${SERVICE_NAME}" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+      if [ "${ROLE_TYPE}" = "SRC" ]
+      then
+          m_src_log $SERVICE_NAME
+      else
+          m_tgt_log $SERVICE_NAME
+      fi
+  fi
+}
+
+m_process()
+{
+  if [ "$SERVICE_NAME" = "all" ]
+  then
+      for j in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+      do
+        ROLE_TYPE=`grep -w "${j}" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+        if [ "${ROLE_TYPE}" = "SRC" ]
+        then
+            m_src_process $j
+        else
+            m_tgt_process $j
+        fi
+      done
+  else
+      ROLE_TYPE=`grep -w "${SERVICE_NAME}" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+      if [ "${ROLE_TYPE}" = "SRC" ]
+      then
+          m_src_process $SERVICE_NAME
+      else
+          m_tgt_process $SERVICE_NAME
+      fi
+  fi
+}
+
+if [ "${M_PROCESS}" = "Y" -a "${AUTO}" = "N" ]
+then
+    m_process
+fi
+
+if [ "${CHK_LOG}" = "Y" -a "${AUTO}" = "Y" ]
+then
+    chk_log
+fi
+
+if [ "${M_LOG}" = "Y" -a "${AUTO}" = "N" ]
+then
+    if [ "${REFRESH_OUTPUT}" = "Y" ]
+    then
+        while true
+        do
+          clear
+          if [ "${CHK_LOG}" = "Y" ]
+          then
+              chk_log
+          fi  
+          m_log
+          sleep 5
+        done
+    else
+        m_log
+    fi
+fi

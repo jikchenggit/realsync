@@ -1,0 +1,136 @@
+#!/bin/ksh
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+  cd ..
+  REALSYNC_BASE=`pwd`
+fi
+
+if [ $# -ne 1 ]
+then
+  echo "    ************************************************************************************"
+  echo "    Usage : initservice SERVICE_NAME"
+  echo "            SERVICE_NAME: please refer to $REALSYNC_BASE/config.srv"
+  echo "                                          "
+  echo "       SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                         $i"
+  done 
+  echo "                         all (initservice all)"
+  echo "    ************************************************************************************"
+  exit
+fi
+
+SERVICENAME=`grep -w "$1" $REALSYNC_BASE/config.srv`
+if [ -z "$SERVICENAME" -a "$1" != "all" -a "$1" != "ALL" ]
+then
+  echo "Warning: SERVICE_NAME $1 not found in ${REALSYNC_BASE}/config.srv."
+  echo "SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                  $i"
+  done
+  echo "                  all (initservice all)"
+  exit
+fi
+
+
+if [ "$1" = "all" -o "$1" = "ALL" ]
+then
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+    for j in bin log config vcfs vcfsa xldr dbps
+    do
+      if [ ! -d ${REALSYNC_BASE}/${j} ]
+      then 
+        mkdir ${REALSYNC_BASE}/${j}
+        echo "${REALSYNC_BASE}/${j} create"
+      fi
+      if [ ! -d ${REALSYNC_BASE}/${j}/${i} ]
+      then
+        mkdir ${REALSYNC_BASE}/${j}/${i}
+        echo "${REALSYNC_BASE}/${j}/${i} create"
+      fi
+      if [ $j = "dbps" ]
+      then
+        mkdir ${REALSYNC_BASE}/${j}/${i}/imp
+        mkdir ${REALSYNC_BASE}/${j}/${i}/exp
+        ln -s ${REALSYNC_BASE}/xldr/${i} ${REALSYNC_BASE}/${j}/${i}/rmp
+        ln -s ${REALSYNC_BASE}/log/${i} ${REALSYNC_BASE}/${j}/${i}/log
+        ln -s ${REALSYNC_BASE}/config/${i} ${REALSYNC_BASE}/${j}/${i}/scripts
+        ln -s ${REALSYNC_BASE}/config/${i} ${REALSYNC_BASE}/${j}/${i}/config
+        mkdir ${REALSYNC_BASE}/${j}/${i}/monitor
+        ln -s ${REALSYNC_BASE}/xldr/${i} ${REALSYNC_BASE}/${j}/${i}/monitor/rmp
+        ln -s ${REALSYNC_BASE}/log/${i} ${REALSYNC_BASE}/${j}/${i}/monitor/log
+        ln -s ${REALSYNC_BASE}/scripts ${REALSYNC_BASE}/${j}/${i}/monitor/scripts
+        ln -s ${REALSYNC_BASE}/config/${i} ${REALSYNC_BASE}/${j}/${i}/monitor/config
+      fi
+    done
+
+    SYSTEM_ROLE=`grep -w "${i}" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+    if [ "${SYSTEM_ROLE}" = "TGT" ]
+    then
+        cp ${REALSYNC_BASE}/mass/config.dsg.tgt ${REALSYNC_BASE}/config/$i/config.dsg
+        cp ${REALSYNC_BASE}/mass/run.sh ${REALSYNC_BASE}/config/$i/
+        cp ${REALSYNC_BASE}/mass/data_load.ini ${REALSYNC_BASE}/config/$i/
+    fi
+    
+    if [ "${SYSTEM_ROLE}" = "SRC" ]
+    then
+        cp ${REALSYNC_BASE}/mass/config.dsg.src ${REALSYNC_BASE}/config/$i/config.dsg
+        cp ${REALSYNC_BASE}/mass/ddl.ini ${REALSYNC_BASE}/config/$i/
+    fi
+
+    cp -r ${REALSYNC_BASE}/mass/bin/* ${REALSYNC_BASE}/bin/$i/
+    cd ${REALSYNC_BASE}/bin/$i/
+    ln -s ../elib elib
+
+  done
+else
+  for j in bin log config vcfs vcfsa xldr dbps
+  do
+    if [ ! -d ${REALSYNC_BASE}/${j} ]
+    then
+      mkdir ${REALSYNC_BASE}/${j}
+      echo "${REALSYNC_BASE}/${j} create"
+    fi
+    if [ ! -d ${REALSYNC_BASE}/${j}/$1 ]
+    then
+      mkdir ${REALSYNC_BASE}/${j}/$1
+      echo "${REALSYNC_BASE}/${j}/$1 create"
+    fi
+    if [ $j = "dbps" ]
+    then
+      mkdir ${REALSYNC_BASE}/${j}/$1/imp
+      mkdir ${REALSYNC_BASE}/${j}/$1/exp
+      ln -s ${REALSYNC_BASE}/xldr/$1 ${REALSYNC_BASE}/${j}/$1/rmp
+      ln -s ${REALSYNC_BASE}/log/$1 ${REALSYNC_BASE}/${j}/$1/log
+      ln -s ${REALSYNC_BASE}/config/$1 ${REALSYNC_BASE}/${j}/$1/scripts
+      ln -s ${REALSYNC_BASE}/config/$1 ${REALSYNC_BASE}/${j}/$1/config
+      mkdir ${REALSYNC_BASE}/${j}/$1/monitor
+      ln -s ${REALSYNC_BASE}/xldr/$1 ${REALSYNC_BASE}/${j}/$1/monitor/rmp
+      ln -s ${REALSYNC_BASE}/log/$1 ${REALSYNC_BASE}/${j}/$1/monitor/log
+      ln -s ${REALSYNC_BASE}/scripts ${REALSYNC_BASE}/${j}/$1/monitor/scripts
+      ln -s ${REALSYNC_BASE}/config/$1 ${REALSYNC_BASE}/${j}/$1/monitor/config
+    fi
+  done
+  
+  SYSTEM_ROLE=`grep -w "${1}" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+  if [ "${SYSTEM_ROLE}" = "TGT" ]
+  then
+      cp ${REALSYNC_BASE}/mass/config.dsg.tgt ${REALSYNC_BASE}/config/$1/config.dsg
+      cp ${REALSYNC_BASE}/mass/run.sh ${REALSYNC_BASE}/config/$1/
+      cp ${REALSYNC_BASE}/mass/data_load.ini ${REALSYNC_BASE}/config/$1/
+  fi
+  
+  if [ "${SYSTEM_ROLE}" = "SRC" ]
+  then
+      cp ${REALSYNC_BASE}/mass/config.dsg.src ${REALSYNC_BASE}/config/$1/config.dsg
+      cp ${REALSYNC_BASE}/mass/ddl.ini ${REALSYNC_BASE}/config/$1/
+  fi
+
+  cp -r ${REALSYNC_BASE}/mass/bin/* ${REALSYNC_BASE}/bin/$1/
+  cd ${REALSYNC_BASE}/bin/$1/
+  ln -s ../elib elib
+fi

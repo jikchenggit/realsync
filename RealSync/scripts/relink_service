@@ -1,0 +1,70 @@
+#!/bin/ksh
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+  cd ..
+  REALSYNC_BASE=`pwd`
+fi
+
+Usage()
+{
+  echo "    ************************************************************************************"
+  echo "    USAGE: relink_service  SERVICE_NAME "
+  echo "           SERVICE_NAME : please refer to ${REALSYNC_BASE}/config.srv"
+  echo "                                          "
+  echo "       SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                         $i"
+  done 
+  echo "    ************************************************************************************"
+  exit
+}
+
+if [ $# -lt 1 ]
+then
+  Usage
+fi
+
+SERVICENAME=`grep -w "$DB_NAME" ${REALSYNC_BASE}/config.srv`
+if [ -z "$SERVICENAME" ]        
+then
+  echo "Warning: SERVICE_NAME $DB_NAME not found in ${REALSYNC_BASE}/config.srv."
+  echo "SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                  $i"
+  done
+  exit
+fi
+
+DB_NAME=$1
+
+  read OPTION?"Do you really want to relink $DB_NAME service ? (Y/N):" 
+  while true
+  do
+    if [ "$OPTION" != "Y" -a "$OPTION" != "y" -a "$OPTION" != "N" -a "$OPTION" != "n" ] 
+    then
+        read OPTION?"Do you really want to relink $DB_NAME service ? (Y/N):" 
+    else
+        break
+    fi
+  done
+  if [ $OPTION = "Y" -o $OPTION = "y" ]
+  then
+    cd ${REALSYNC_BASE}/scripts
+    ./stop_vagentd ${DB_NAME}
+    rm -rf ${REALSYNC_BASE}/dbps/${DB_NAME}/rmp
+    rm -rf ${REALSYNC_BASE}/dbps/${DB_NAME}/config
+    rm -rf ${REALSYNC_BASE}/dbps/${DB_NAME}/log
+    rm -rf ${REALSYNC_BASE}/dbps/${DB_NAME}/scripts
+    ln -s ${REALSYNC_BASE}/config/${DB_NAME} ${REALSYNC_BASE}/dbps/${DB_NAME}/config
+    ln -s ${REALSYNC_BASE}/config/${DB_NAME} ${REALSYNC_BASE}/dbps/${DB_NAME}/scripts
+    ln -s ${REALSYNC_BASE}/log/${DB_NAME} ${REALSYNC_BASE}/dbps/${DB_NAME}/log
+    ln -s ${REALSYNC_BASE}/xldr/${DB_NAME} ${REALSYNC_BASE}/dbps/${DB_NAME}/rmp
+    echo "$DB_NAME service is relink"
+  fi
+  if [ $OPTION = "N" -o $OPTION = "n" ]
+  then
+    echo "no service relink"
+  fi

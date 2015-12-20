@@ -1,0 +1,37 @@
+#!/bin/ksh
+
+OXAD_IP=127.0.0.1
+OXAD_PORT=75006
+
+stop_oxad()
+{
+  pid=`ps -ef |grep oxad |grep -v grep |grep $OXAD_PORT |wc -l`
+  while [ $pid -ge 1 ]
+  do
+    ps -ef |grep oxad |grep -v grep |grep $OXAD_PORT |awk '{print "kill -9 "$2}'|sh
+    pid=`ps -ef |grep oxad |grep -v grep |grep $OXAD_PORT |wc -l`
+  done
+  echo "Oxad was Stopped." 
+}
+
+stop_aoxd()
+{
+  pid=`ps -ef |grep -w aoxd|grep -v grep|awk '{print $2}'`
+  if [ ! -z "$pid" ]
+  then
+      for id in $pid
+      do
+          kill -9 $id
+      done
+      pid1=`ps -ef |grep -w aoxd|grep -v grep|awk '{print $2}'`
+      if [ -z "$pid1" ]
+      then
+          echo "Aoxd was Stopped!"
+      else
+          echo "Aoxd not Stop!"
+      fi
+  fi
+}
+
+stop_aoxd
+stop_oxad

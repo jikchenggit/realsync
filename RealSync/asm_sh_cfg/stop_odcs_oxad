@@ -1,0 +1,67 @@
+#!/bin/ksh
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+  cd ..
+  REALSYNC_BASE=`pwd`
+fi
+
+SERVICE_NAME=`cat $REALSYNC_BASE/config.srv |grep -v grep |grep -v "#" |awk '{print $1}' |head -1`
+OXAD_IP=127.0.0.1
+OXAD_PORT=6819
+
+stop_odcs()
+{
+  cd $REALSYNC_BASE/bin/$SERVICE_NAME
+  pid=`ps -ef |grep odcs |grep -v grep |grep $SERVICE_NAME |wc -l`
+while [ $pid -ge 1 ]
+do
+./odcc :2002 <<EOF
+shutdown
+EOF
+sleep 2
+pid=`ps -ef |grep odcs |grep -v grep |grep $SERVICE_NAME |wc -l`
+done
+  echo "Odcs was Stopped."
+}
+
+stop_oxad()
+{
+  pid=`ps -ef |grep oxad |grep -v grep |grep $OXAD_PORT |wc -l`
+  while [ $pid -ge 1 ]
+  do
+    ps -ef |grep oxad |grep -v grep |grep $OXAD_PORT |awk '{print "kill -9 "$2}'|sh
+    pid=`ps -ef |grep oxad |grep -v grep |grep $OXAD_PORT |wc -l`
+  done
+  echo "Oxad was Stopped." 
+}
+
+#read OPTION?"Do you want to stop oxad or stop odcs or stop all (oxad/odcs/all):(default all):"
+#if [ -z "$OPTION" ]
+#then
+#    OPTION="all"
+#fi
+#while [ "$OPTION" != "oxad" -a "$OPTION" != "odcs" -a "$OPTION" != "all" ]
+#do
+#  echo "Error Input"
+#  read OPTION?"Please reinput your choice (oxad/odcs/all):(default all):"
+#done
+
+OPTION="oxad"
+
+if [ "$OPTION" = "all" ]
+then
+    stop_odcs
+    sleep 1
+    stop_oxad
+fi
+
+if [ "$OPTION" = "odcs" ]
+then
+    stop_odcs
+fi
+
+if [ "$OPTION" = "oxad" ]
+then
+    stop_oxad
+fi

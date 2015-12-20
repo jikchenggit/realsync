@@ -1,0 +1,444 @@
+#!/bin/ksh
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+  cd ..
+  REALSYNC_BASE=`pwd`
+fi
+
+if [ -d "$ORACLE_HOME/lib32" ]
+then
+  export LD_LIBRARY_PATH=$ORACLE_HOME/lib32
+  export LIBPATH=$ORACLE_HOME/lib32
+  export SHLIB_PATH=$ORACLE_HOME/lib32
+else
+  export LD_LIBRARY_PATH=$ORACLE_HOME/lib
+  export LIBPATH=$ORACLE_HOME/lib
+  export SHLIB_PATH=$ORACLE_HOME/lib
+fi
+#export XLOGGER=Y
+#export XMON_GET_GUI_STATE=1
+
+Usage()
+{
+  echo "    ************************************************************************************"
+  echo "    USAGE: start_vagentd SERVICE_NAME [TYPE]"
+  echo "           SERVICE_NAME : please refer to ${REALSYNC_BASE}/config.srv or all"
+  echo "                   TYPE : agn/svr/snd/load"
+  echo "                                          "
+  echo "       SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                         $i"
+  done 
+  echo "                         all (start all)"
+  echo "    ************************************************************************************"
+  exit
+}
+
+if [ $# -lt 1 -a -z "$SERVICE_NAME" ]
+then
+  Usage
+fi
+
+DB_NAME=""
+if [ ! -z "$SERVICE_NAME" ]
+then
+    DB_NAME=$SERVICE_NAME
+else
+    DB_NAME=$1
+fi
+
+SERVICENAME=`grep -w "$DB_NAME" ${REALSYNC_BASE}/config.srv`
+if [ -z "$SERVICENAME" -a "$DB_NAME" != "all" ]        
+then
+  echo "Warning: SERVICE_NAME $DB_NAME not found in ${REALSYNC_BASE}/config.srv."
+  echo "SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                  $i"
+  done
+  echo "                  all (start all)"
+  exit
+fi
+
+agn_src()
+{
+  export VCFS_HOME=${REALSYNC_BASE}/vcfsa/$1
+  export XLDR_HOME=${REALSYNC_BASE}/xldr/$1
+  export DBPS_HOME=${REALSYNC_BASE}/dbps/$1
+  DATE=`date +%Y%m%d%H%M%S`
+  nohup ${REALSYNC_BASE}/bin/$1/vagentd -f $2 >> ${REALSYNC_BASE}/log/$1/log.vagentd 2>&1 &
+}
+
+agn_tgt()
+{
+  export VCFS_HOME=${REALSYNC_BASE}/vcfsa/$1
+  export XLDR_HOME=${REALSYNC_BASE}/xldr/$1
+  export DBPS_HOME=${REALSYNC_BASE}/dbps/$1
+  DATE=`date +%Y%m%d%H%M%S`
+  nohup ${REALSYNC_BASE}/bin/$1/vagentd -f $2  > ${REALSYNC_BASE}/log/$1/log.vagentd 2>&1 &
+}
+
+svr_src()
+{
+  export XLDR_HOME=${REALSYNC_BASE}/xldr/$1
+  export DBPS_HOME=${REALSYNC_BASE}/dbps/$1
+  export VCFS_HOME=${REALSYNC_BASE}/vcfs/$1
+  nohup ${REALSYNC_BASE}/bin/$1/dbpsd -f $2 > ${REALSYNC_BASE}/log/$1/log.server 2>&1 &
+}
+
+snd_src()
+{
+  export VCFS_HOME=${REALSYNC_BASE}/vcfsa/$1
+  export XLDR_HOME=${REALSYNC_BASE}/xldr/$1
+  export DBPS_HOME=${REALSYNC_BASE}/dbps/$1
+  DATE=`date +%Y%m%d%H%M%S`
+  nohup ${REALSYNC_BASE}/bin/$1/sender -auto_restart -tseq 1 >> ${REALSYNC_BASE}/log/$1/log.send0 2>&1 & 
+}
+
+load_r()
+{
+  export VCFS_HOME=${REALSYNC_BASE}/vcfsa/$1
+  export XLDR_HOME=${REALSYNC_BASE}/xldr/$1
+  export DBPS_HOME=${REALSYNC_BASE}/dbps/$1
+  DATE=`date +%Y%m%d%H%M%S`
+  r_parallel=`cat ${REALSYNC_BASE}/config/$1/config.dsg |grep LOADER_R_PARALLEL |awk -F= '{print $2}'`
+  if [ -z "${r_parallel}" ]
+  then
+      r_parallel=1
+  fi
+  count=0
+  while [ ${count} -lt ${r_parallel} ]
+  do
+    nohup ${REALSYNC_BASE}/bin/$1/loader -r -qno ${count} >> ${REALSYNC_BASE}/log/$1/log.r${count} 2>&1 &
+    let count=count+1
+  done  
+}
+
+load_s()
+{
+  export VCFS_HOME=${REALSYNC_BASE}/vcfsa/$1
+  export XLDR_HOME=${REALSYNC_BASE}/xldr/$1
+  export DBPS_HOME=${REALSYNC_BASE}/dbps/$1
+  DATE=`date +%Y%m%d%H%M%S`
+  parallel=`cat ${REALSYNC_BASE}/config/$1/config.dsg |grep LOADER_PARALLEL |awk -F= '{print $2}'`
+  if [ -z "${parallel}" ]
+  then
+      parallel=1
+  fi
+  count=0
+  while [ ${count} -lt ${parallel} ]
+  do
+    nohup ${REALSYNC_BASE}/bin/$1/loader -s -qno ${count} >> ${REALSYNC_BASE}/log/$1/log.s${count} 2>&1 &
+    let count=count+1
+  done
+}
+
+start_src()
+{
+  export VCFS_HOME=${REALSYNC_BASE}/vcfsa/$1
+  export XLDR_HOME=${REALSYNC_BASE}/xldr/$1
+  export DBPS_HOME=${REALSYNC_BASE}/dbps/$1
+  
+  if [ -f "${REALSYNC_BASE}/config/$1/cfg.nosync" ]
+  then
+    cp ${REALSYNC_BASE}/config/$1/cfg.nosync ${REALSYNC_BASE}/vcfsa/$1
+  fi
+
+  if [ ! -d "${REALSYNC_BASE}/log/$1/oldlog" ]
+  then
+      mkdir ${REALSYNC_BASE}/log/$1/oldlog
+  fi
+
+  DATE=`date +%Y%m%d%H%M%S`
+  if [ -f ${REALSYNC_BASE}/log/$1/log.vagentd ]
+  then
+    mv ${REALSYNC_BASE}/log/$1/log.vagentd ${REALSYNC_BASE}/log/$1/oldlog/log.vagentd${DATE}
+  fi
+  
+  if [ -f ${REALSYNC_BASE}/log/$1/log.send0 ]
+  then
+    mv ${REALSYNC_BASE}/log/$1/log.send0 ${REALSYNC_BASE}/log/$1/oldlog/log.send0${DATE}
+  fi
+  
+  agn_src $*
+  sleep 1
+  snd_src $*
+  export VCFS_HOME=${REALSYNC_BASE}/vcfs/$1
+  svr_src $1 $3
+
+  nohup ${REALSYNC_BASE}/scripts/archive_del_log $1 >> ${REALSYNC_BASE}/log/$1/log.arch &
+}
+
+start_tgt()
+{
+  export VCFS_HOME=${REALSYNC_BASE}/vcfsa/$1
+  export XLDR_HOME=${REALSYNC_BASE}/xldr/$1
+  export DBPS_HOME=${REALSYNC_BASE}/dbps/$1
+
+  export RUN_NAME=$1
+  export REALSYNC_BASE=${REALSYNC_BASE}
+  if [ -f "${REALSYNC_BASE}/config/$1/cfg.queue" ]
+  then
+    cp ${REALSYNC_BASE}/config/$1/cfg.queue ${REALSYNC_BASE}/xldr/$1/cfg.queue
+  fi
+  if [ -f "${REALSYNC_BASE}/config/$1/run.sh" ]
+  then
+    cp ${REALSYNC_BASE}/config/$1/run.sh ${REALSYNC_BASE}/xldr/$1/run.sh
+  fi
+  if [ ! -d "${REALSYNC_BASE}/log/$1/oldlog" ]
+  then
+      mkdir ${REALSYNC_BASE}/log/$1/oldlog
+  fi
+  DATE=`date +%Y%m%d%H%M%S` 
+  parallel=`cat ${REALSYNC_BASE}/config/$1/config.dsg |grep LOADER_PARALLEL |awk -F= '{print $2}'`
+  if [ -z "${parallel}" ]
+  then
+      parallel=1
+  fi
+  count=0
+  while [ ${count} -lt ${parallel} ]
+  do
+    if [ -f ${REALSYNC_BASE}/log/$1/log.s${count} ]
+    then
+      mv ${REALSYNC_BASE}/log/$1/log.s${count} ${REALSYNC_BASE}/log/$1/oldlog/log.s${count}${DATE}
+    fi
+    let count=count+1
+  done
+
+  r_parallel=`cat ${REALSYNC_BASE}/config/$1/config.dsg |grep LOADER_R_PARALLEL |awk -F= '{print $2}'`
+  if [ -z "${r_parallel}" ]
+  then
+      r_parallel=1
+  fi
+  count=0
+  while [ ${count} -lt ${r_parallel} ]
+  do
+    if [ -f ${REALSYNC_BASE}/log/$1/log.r${count} ]
+    then
+        mv ${REALSYNC_BASE}/log/$1/log.r${count} ${REALSYNC_BASE}/log/$1/oldlog/log.r${count}${DATE}
+    fi
+    let count=count+1
+  done
+
+#  if [ -f ${REALSYNC_BASE}/log/$1/log.r0 ]
+#  then
+#    mv ${REALSYNC_BASE}/log/$1/log.r0 ${REALSYNC_BASE}/log/$1/oldlog/log.r0${DATE}
+#  fi
+  > ${REALSYNC_BASE}/xldr/$1/tgt_total.txt
+  
+  agn_tgt $*
+  sleep 2
+  load_s $*
+  load_r $*
+ 
+  nohup ${REALSYNC_BASE}/scripts/archive_del_log $1 >> ${REALSYNC_BASE}/log/$1/log.arch &
+}
+
+load_tgt()
+{
+  export VCFS_HOME=${REALSYNC_BASE}/vcfsa/$1
+  export XLDR_HOME=${REALSYNC_BASE}/xldr/$1
+  export DBPS_HOME=${REALSYNC_BASE}/dbps/$1
+  DATE=`date +%Y%m%d%H%M%S`
+  > ${REALSYNC_BASE}/xldr/$1/tgt_total.txt
+  if [ $2 = "all" ]
+  then
+    load_s $*
+    load_r $*
+  fi
+  if [ $2 = "r" -o $2 = "R" ]
+  then
+    load_r $*
+  fi
+  if [ $2 = "s" -o $2 = "S" ]
+  then
+    load_s $*
+  fi
+}
+
+
+if [ $# -lt 2 ]
+then
+ if [ "${DB_NAME}" != "all" ]
+ then
+  AGN_PORT=`grep -w "${DB_NAME}" ${REALSYNC_BASE}/config.srv | awk '{print $3}'`
+  SVR_PORT=`grep -w "${DB_NAME}" ${REALSYNC_BASE}/config.srv | awk '{print $2}'`
+  SYSTEM_ROLE=`grep -w "${DB_NAME}" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+  
+  pid=`ps -ef | grep vagentd | grep ${AGN_PORT} | grep -v grep | awk '{print $2}'`
+  if [ -z "$pid" ]
+  then
+    cd ${REALSYNC_BASE}/scripts
+    #./start_oxad ${DB_NAME}
+    cd ${REALSYNC_BASE}/bin/${DB_NAME}
+    if [ "${SYSTEM_ROLE}" = "TGT" ]
+    then
+      start_tgt ${DB_NAME} ${AGN_PORT}
+      sleep 2
+      echo "Agent with port ${AGN_PORT} Started."
+      echo "Loader with ${DB_NAME} Started."
+      ps -ef | grep vagentd  | grep -v start_vagentd | grep -w "${DB_NAME}"
+      ps -ef | grep loader   | grep -w "${DB_NAME}" 
+    else
+      if [ "${SYSTEM_ROLE}" = "SRC" ] 
+      then
+        start_src ${DB_NAME} ${AGN_PORT} ${SVR_PORT}
+        sleep 2
+        echo "Agent with port ${AGN_PORT} Started."
+        echo "Dbpsd with port ${SVR_PORT} Started."
+        echo "Sender with ${DB_NAME} Started."
+        ps -ef | grep vagentd  | grep -v start_vagentd | grep -w "${DB_NAME}"
+        ps -ef | grep sender   | grep -w "${DB_NAME}"
+        ps -ef | grep dbpsd    | grep -w "${DB_NAME}"
+      fi
+    fi
+  else
+    echo "INFORMANTION: another agent with port ${AGN_PORT} is running."
+  fi
+else
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+    AGN_PORT=`grep -w "$i" ${REALSYNC_BASE}/config.srv | awk '{print $3}'` 
+    SVR_PORT=`grep -w "$i" ${REALSYNC_BASE}/config.srv | awk '{print $2}'`
+    SYSTEM_ROLE=`grep -w "$i" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+ 
+    pid=`ps -ef | grep vagentd | grep ${AGN_PORT} | grep -v grep | awk '{print $2}'`
+    if [ -z "$pid" ]
+    then
+      cd ${REALSYNC_BASE}/scripts
+      #./start_oxad $i
+      cd ${REALSYNC_BASE}/bin/$i
+      if [ "${SYSTEM_ROLE}" = "TGT" ]
+      then
+        start_tgt $i ${AGN_PORT}
+        sleep 3
+        echo "Agent with port ${AGN_PORT} Started."
+        echo "Loader with $i Started."
+        ps -ef | grep vagentd  | grep -v start_vagentd | grep -w "$i"
+        ps -ef | grep loader   | grep -w "$i"
+      else
+        if [ "${SYSTEM_ROLE}" = "SRC" ]
+        then
+          start_src $i ${AGN_PORT} ${SVR_PORT}
+          sleep 5
+          echo "Agent with port ${AGN_PORT} Started."
+          echo "Dbpsd with port ${SVR_PORT} Started."
+          echo "Sender with $i Started."
+          ps -ef | grep vagentd  | grep -v start_vagentd | grep -w "$i"
+          ps -ef | grep sender   | grep -w "$i"
+          ps -ef | grep dbpsd    | grep -w "$i"
+        fi
+      fi
+    else
+      echo "INFORMANTION: another agent with port ${AGN_PORT} is running."
+    fi
+  done
+ fi
+else
+ if [ $2 != "agn" -a $2 != "svr" -a $2 != "load" -a $2 != "snd" ]
+ then
+    echo "Error Input TYPE"
+    Usage
+    exit
+ fi
+ if [ $2 = "agn" ]
+ then
+    SYSTEM_ROLE=`grep -w "$DB_NAME" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+    AGN_PORT=`grep -w "$DB_NAME" ${REALSYNC_BASE}/config.srv | awk '{print $3}'`
+    pid=`ps -ef | grep vagentd | grep ${AGN_PORT} | grep -v grep | awk '{print $2}'`
+    if [ -z "$pid" ]
+    then
+      cd ${REALSYNC_BASE}/bin/$DB_NAME
+      if [ "${SYSTEM_ROLE}" = "TGT" ]
+      then
+          agn_tgt $DB_NAME ${AGN_PORT}
+          echo "Agent with port ${AGN_PORT} Started."
+          ps -ef | grep vagentd  | grep -v start_vagentd | grep -w "$DB_NAME"
+      fi
+      if [ "${SYSTEM_ROLE}" = "SRC" ]
+      then
+          agn_src $DB_NAME ${AGN_PORT}
+          echo "Agent with port ${AGN_PORT} Started."
+          ps -ef | grep vagentd  | grep -v start_vagentd | grep -w "$DB_NAME"
+      fi
+    else
+       echo "INFORMANTION: another agent with port ${AGN_PORT} is running."
+    fi  
+ fi
+ if [ $2 = "svr" ]
+ then
+     SYSTEM_ROLE=`grep -w "$DB_NAME" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+     SVR_PORT=`grep -w "$DB_NAME" ${REALSYNC_BASE}/config.srv | awk '{print $2}'`
+     pid=`ps -ef | grep dbpsd | grep ${SVR_PORT} | grep -v grep | awk '{print $2}'`
+    if [ -z "$pid" ]
+    then
+      cd ${REALSYNC_BASE}/bin/$DB_NAME
+      if [ "${SYSTEM_ROLE}" = "SRC" ]
+      then
+          svr_src $DB_NAME ${SVR_PORT}
+          echo "Dbpsd with port ${SVR_PORT} Started."
+          ps -ef | grep dbpsd | grep -w "$DB_NAME"
+      else
+          echo "Please start dbpsd in source host"
+      fi
+    else
+       echo "INFORMANTION: another dbpsd with port ${SVR_PORT} is running."
+    fi
+ fi
+ if [ $2 = "load" ]
+ then
+    SYSTEM_ROLE=`grep -w "$DB_NAME" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+    if [ "${SYSTEM_ROLE}" = "TGT" ]
+    then
+      OPTION="all"
+      read OPTION?"Do you want to start loader -r or start loader -s or start all loader (r/s/all):(default all):"
+      if [ -z $OPTION ]
+      then
+          OPTION="all"
+      fi
+      while [ "$OPTION" != "r" -a "$OPTION" != "s" -a "$OPTION" != "all" ]
+      do
+        echo "Error Input"
+        read OPTION?"Please reinput your choice (r/s/all):(default all):"
+      done
+      pid=`ps -ef | grep loader | grep -w "$DB_NAME" | grep -v grep | awk '{print $2}'`
+      if [ $$OPTION != "all" ]
+      then
+        pid=`ps -ef | grep "loader -$OPTION" | grep -w "$DB_NAME" | grep -v grep | awk '{print $2}'`
+      fi
+      if [ -z "$pid" ]
+      then
+          cd ${REALSYNC_BASE}/bin/$DB_NAME
+          load_tgt $DB_NAME $OPTION
+          echo "Loader with $DB_NAME Started."
+          ps -ef | grep loader | grep -w "$DB_NAME"
+      else
+          echo "INFORMANTION: another loader with $DB_NAME is running."
+      fi
+    else
+       echo "Please start loader in target host"
+    fi
+ fi
+ if [ $2 = "snd" ]
+ then
+    SYSTEM_ROLE=`grep -w "$DB_NAME" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+    pid=`ps -ef | grep sender | grep -w "$DB_NAME" | grep -v grep | awk '{print $2}'`
+    if [ -z "$pid" ]
+    then
+      cd ${REALSYNC_BASE}/bin/$DB_NAME
+      if [ "${SYSTEM_ROLE}" = "SRC" ]
+      then
+          snd_src $DB_NAME
+          echo "Sender with $DB_NAME Started."
+          ps -ef | grep sender | grep -w "$DB_NAME"
+      else
+          echo "Please start sender in target host"
+      fi
+    else
+       echo "INFORMANTION: another sender with $DB_NAME is running."
+    fi
+ fi
+fi
+exit

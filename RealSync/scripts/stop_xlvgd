@@ -1,0 +1,18 @@
+#!/bin/ksh
+
+xlvgd_stop()
+{   
+ XLVGD_PORT=7816
+ pid=`ps -ef | grep xlvgd | grep ${XLVGD_PORT} | grep -v grep | awk '{print $2}'`
+  if [ !  -z "$pid" ]
+  then
+    for p in $pid
+    do
+      kill -9 $p
+    done
+    echo "Xlvgd with port ${XLVGD_PORT} Stopped."
+  fi
+} 
+
+xlvgd_stop
+

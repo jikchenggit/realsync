@@ -1,0 +1,188 @@
+#!/bin/ksh
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+  cd ..
+  REALSYNC_BASE=`pwd`
+fi
+
+Usage()
+{
+  echo "    ************************************************************************************"
+  echo "    USAGE:  archive_del_log SERVICE_NAME"
+  echo "             SERVICE_NAME : please refer to $REALSYNC_BASE/config.srv"
+  echo "                                          "
+  echo "       SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                         $i"
+  done 
+  echo "    ************************************************************************************"
+  exit
+}
+
+
+if [ $# -lt 1 -a -z "$SERVICE_NAME" ]
+then
+  Usage
+fi
+
+DB_NAME=""
+if [ ! -z "$SERVICE_NAME" ]
+then
+    DB_NAME=$SERVICE_NAME
+else
+    DB_NAME=$1
+fi
+
+SERVICENAME=`grep -w "$DB_NAME" ${REALSYNC_BASE}/config.srv`
+if [ -z "$SERVICENAME" ]
+then
+  echo "Warning: SERVICE_NAME $DB_NAME not found in ${REALSYNC_BASE}/config.srv."
+  echo "SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                  $i"
+  done
+  exit
+fi
+
+SVC_NAME=$DB_NAME
+DELETE_OLDLOG_DATE=100
+NOW_H=`date +%T |awk -F: '{print $1}'`
+MARK=ON
+CLEAR_TIME="00"
+
+src_del_log()
+{
+  echo " " >> ${REALSYNC_BASE}/log/${SVC_NAME}/log.arch
+  echo `date +%Y-%m-%d" "%H:%M:%S` >> ${REALSYNC_BASE}/log/${SVC_NAME}/log.arch
+  echo "Begin archive and delete log.vagentd/log.send0" >> ${REALSYNC_BASE}/log/${SVC_NAME}/log.arch
+  echo "archive log :" >> ${REALSYNC_BASE}/log/${SVC_NAME}/log.arch
+  DATE=`date +%Y%m%d`
+#  ps -ef |grep -w "$SVC_NAME" |grep vagentd |awk '{print "kill -STOP "$2}' |sh
+#  sleep 1
+  if [ ! -f "${REALSYNC_BASE}/log/$SVC_NAME/oldlog/log.vagentd${DATE}" ]
+  then
+      cp ${REALSYNC_BASE}/log/${SVC_NAME}/log.vagentd ${REALSYNC_BASE}/log/$SVC_NAME/oldlog/log.vagentd${DATE}
+      > ${REALSYNC_BASE}/log/${SVC_NAME}/log.vagentd
+#  sleep 1
+#  ps -ef |grep -w "$SVC_NAME" |grep vagentd |awk '{print "kill -CONT "$2}' |sh 
+      echo "${REALSYNC_BASE}/log/$SVC_NAME/oldlog/log.vagentd${DATE}" >> ${REALSYNC_BASE}/log/${SVC_NAME}/log.arch  
+  fi
+
+  sleep 1
+
+#  ps -ef |grep -w "$SVC_NAME" |grep sender |awk '{print "kill -STOP "$2}' |sh
+#  sleep 1
+  if [ ! -f "${REALSYNC_BASE}/log/$SVC_NAME/oldlog/log.send0${DATE}" ]
+  then
+      cp ${REALSYNC_BASE}/log/${SVC_NAME}/log.send0 ${REALSYNC_BASE}/log/$SVC_NAME/oldlog/log.send0${DATE}
+      > ${REALSYNC_BASE}/log/${SVC_NAME}/log.send0
+      sleep 1
+#  ps -ef |grep -w "$SVC_NAME" |grep sender |awk '{print "kill -CONT "$2}' |sh
+      echo "${REALSYNC_BASE}/log/$SVC_NAME/oldlog/log.send0${DATE}" >> ${REALSYNC_BASE}/log/${SVC_NAME}/log.arch
+  fi
+  
+  echo "delete log :" >> ${REALSYNC_BASE}/log/${SVC_NAME}/log.arch
+  find ${REALSYNC_BASE}/log/$SVC_NAME/oldlog/ -type f -mtime +$DELETE_OLDLOG_DATE >> ${REALSYNC_BASE}/log/${SVC_NAME}/log.arch
+  if [ ! -z `find ${REALSYNC_BASE}/log/$SVC_NAME/oldlog/ -type f -mtime +$DELETE_OLDLOG_DATE | head -1` ]
+  then
+      rm -rf `find ${REALSYNC_BASE}/log/$SVC_NAME/oldlog/ -type f -mtime +$DELETE_OLDLOG_DATE`
+  fi
+  echo "End archive and delete log.vagentd/log.send0" >> ${REALSYNC_BASE}/log/${SVC_NAME}/log.arch
+  > ${REALSYNC_BASE}/vcfsa/${SVC_NAME}/src_total.txt
+  
+}
+
+tgt_del_log()
+{
+  echo " " >> ${REALSYNC_BASE}/log/${SVC_NAME}/log.arch
+  echo `date +%Y-%m-%d" "%H:%M:%S` >> ${REALSYNC_BASE}/log/${SVC_NAME}/log.arch
+  echo "Begin archive and delete log.r0" >> ${REALSYNC_BASE}/log/${SVC_NAME}/log.arch
+  echo "archive log :" >> ${REALSYNC_BASE}/log/${SVC_NAME}/log.arch
+  DATE=`date +%Y%m%d`
+#  ps -ef |grep -w "$SVC_NAME" |grep loader |awk '{print "kill -STOP "$2}' |sh
+#  sleep 1
+  r_parallel=`cat ${REALSYNC_BASE}/config/$SVC_NAME/config.dsg |grep LOADER_R_PARALLEL |awk -F= '{print $2}'`
+  if [ -z "${r_parallel}" ]
+  then
+      r_parallel=1
+  fi
+  count=0
+  while [ ${count} -lt ${r_parallel} ]
+  do
+    if [ ! -f "${REALSYNC_BASE}/log/$SVC_NAME/oldlog/log.r${count}${DATE}" ]
+    then
+        cp ${REALSYNC_BASE}/log/${SVC_NAME}/log.r${count} ${REALSYNC_BASE}/log/$SVC_NAME/oldlog/log.r${count}${DATE}
+        > ${REALSYNC_BASE}/log/${SVC_NAME}/log.r${count}
+        echo "${REALSYNC_BASE}/log/$SVC_NAME/oldlog/log.r${count}${DATE}" >> ${REALSYNC_BASE}/log/${SVC_NAME}/log.arch
+    fi
+    let count=count+1
+  done  
+  sleep 1
+#  ps -ef |grep -w "$SVC_NAME" |grep loader |awk '{print "kill -CONT "$2}' |sh
+
+  echo "delete log :" >> ${REALSYNC_BASE}/log/${SVC_NAME}/log.arch
+  find ${REALSYNC_BASE}/log/$SVC_NAME/oldlog/ -type f -mtime +$DELETE_OLDLOG_DATE >> ${REALSYNC_BASE}/log/${SVC_NAME}/log.arch
+  if [ ! -z `find ${REALSYNC_BASE}/log/$SVC_NAME/oldlog/ -type f -mtime +$DELETE_OLDLOG_DATE | head -1` ]
+  then
+      rm -rf `find ${REALSYNC_BASE}/log/$SVC_NAME/oldlog/ -type f -mtime +$DELETE_OLDLOG_DATE`
+  fi
+  > ${REALSYNC_BASE}/xldr/${SVC_NAME}/tgt_total.txt
+  echo "clear ${REALSYNC_BASE}/xldr/${SVC_NAME}/tgt_total.txt" >> ${REALSYNC_BASE}/log/${SVC_NAME}/log.arch
+  echo "End archive and delete log.r0" >> ${REALSYNC_BASE}/log/${SVC_NAME}/log.arch
+
+}
+
+src_chk_log()
+{
+  I_ERR=`grep -w Invalid ${REALSYNC_BASE}/log/$SVC_NAME/log.vagentd |wc -l`
+  R_ERR=`grep Restarting ${REALSYNC_BASE}/log/$SVC_NAME/log.vagentd |wc -l`
+  DATE=`date +%Y%m%d%H%M%S`
+  if [ $I_ERR -gt 0 ]
+  then
+      cd ${REALSYNC_BASE}/scripts
+      ./stop_vagentd $SVC_NAME agn
+      mv ${REALSYNC_BASE}/log/$SVC_NAME/log.vagentd ${REALSYNC_BASE}/log/$SVC_NAME/oldlog/log.vagentdInvalid$DATE
+      sleep 2
+      ./start_vagentd $SVC_NAME agn
+  fi
+  if [ $R_ERR -gt 0 ]
+  then
+      cd ${REALSYNC_BASE}/scripts
+      ./stop_vagentd $SVC_NAME agn
+      mv ${REALSYNC_BASE}/log/$SVC_NAME/log.vagentd ${REALSYNC_BASE}/log/$SVC_NAME/oldlog/log.vagentdRest$DATE
+      sleep 2
+      ./start_vagentd $SVC_NAME agn
+  fi
+}
+
+while true
+do
+  if [ "$NOW_H" = "$CLEAR_TIME" -a "$MARK" = "ON" ]
+  then
+      SYSTEM_ROLE=`grep -w "$SVC_NAME" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+      if [ "$SYSTEM_ROLE" = "SRC" ]
+      then
+          src_del_log
+      else
+          tgt_del_log
+      fi
+      MARK=OFF
+      sleep 300
+  else
+#     echo `date +%Y-%m-%d" "%H:%M:%S`
+      sleep 300
+  fi
+#  SYSTEM_ROLE=`grep -w "$SVC_NAME" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+#  if [ "$SYSTEM_ROLE" = "SRC" ]
+#  then
+#      src_chk_log
+#  fi
+  NOW_H=`date +%T |awk -F: '{print $1}'`
+  if [ "$NOW_H" != "$CLEAR_TIME" ]
+  then
+      MARK=ON
+  fi
+done

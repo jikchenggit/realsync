@@ -1,0 +1,228 @@
+#!/bin/ksh
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+   cd ..
+   REALSYNC_BASE=`pwd`
+fi
+
+if [ -d "$ORACLE_HOME/lib32" ]
+then
+  export LD_LIBRARY_PATH=$ORACLE_HOME/lib32
+  export LIBPATH=$ORACLE_HOME/lib32
+  export SHLIB_PATH=$ORACLE_HOME/lib32
+else
+  export LD_LIBRARY_PATH=$ORACLE_HOME/lib
+  export LIBPATH=$ORACLE_HOME/lib
+  export SHLIB_PATH=$ORACLE_HOME/lib
+fi
+
+SERVICENAME=`grep -w "$1" ${REALSYNC_BASE}/config.srv`
+if [ -z "$SERVICENAME" ]        
+then
+  echo "Warning: SERVICE_NAME $1 not found in ${REALSYNC_BASE}/config.srv."
+  echo "SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                  $i"
+  done
+  echo "                  all (start all verify)"
+  exit
+fi
+
+Usage_tgt()
+{
+  echo "    ************************************************************************************"
+  echo "    TGT_USAGE: verify_start SERVICE_NAME"
+  echo "               SERVICE_NAME : please refer to ${REALSYNC_BASE}/config.srv"
+  echo "                                          "
+  echo "       SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                         $i"
+  done 
+  echo "                         all (start all verify)"
+  echo "    ************************************************************************************"
+}
+
+Usage_src()
+{
+  echo "    ************************************************************************************"
+  echo "    SRC_USAGE: verify_start SERVICE_NAME [ USER_NAME OR USER_NAME.TABLE_NAME ...... ]"
+  echo "               SERVICE_NAME : please refer to ${REALSYNC_BASE}/config.srv"
+  echo "                  USER_NAME : database user name"
+  echo "               USER_NAME.TABLE_NAME : database user name and table_name"
+  echo "                                          "
+  echo "       SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                         $i"
+  done 
+  echo "                         all (start all verify)"
+  echo "    ************************************************************************************"
+}
+
+verify_tgt()
+{
+  export SOURCE_ORACLE_SID=`grep SOURCE_ORACLE_SID ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+  rm -rf ${REALSYNC_BASE}/verify/$1/*
+  mkdir -p ${REALSYNC_BASE}/verify/$1/xldr
+  mkdir -p ${REALSYNC_BASE}/verify/$1/vcfsa
+  ln -s ${REALSYNC_BASE}/xldr/$1/imp_$SOURCE_ORACLE_SID ${REALSYNC_BASE}/verify/$1/xldr
+  ln -s ${REALSYNC_BASE}/xldr/$1/cfg.xf1t.struct ${REALSYNC_BASE}/verify/$1/xldr
+  export VCFS_HOME=${REALSYNC_BASE}/verify/$1/vcfsa
+  export XLDR_HOME=${REALSYNC_BASE}/verify/$1/xldr
+  export DBPS_HOME=${REALSYNC_BASE}/dbps/$1
+
+  nohup ${REALSYNC_BASE}/bin/$1/vagentd -f -onlycheck $2 > ${REALSYNC_BASE}/log/$1/log.verify 2>&1 &
+  sleep 3
+  nohup ${REALSYNC_BASE}/bin/$1/loader -onlycheck -s -qno 0 > ${REALSYNC_BASE}/log/$1/log.v0 2>&1 &  
+  
+}
+
+verify_src()
+{
+  TGT_IP=`cat ${REALSYNC_BASE}/config/$1/config.dsg | grep TARGET_HOST_IP | awk -F= '{print $2}'`
+  SOURCE_DB_USER=`grep SOURCE_DB_USER ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+  SOURCE_DB_PSWD=`grep SOURCE_DB_PSWD ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+  TARGET_DB_USER=`grep TARGET_DB_USER ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+  TARGET_DB_PSWD=`grep TARGET_DB_PSWD ${REALSYNC_BASE}/config/$1/config.dsg | awk -F= '{print $2}'`
+  export VCFS_HOME=${REALSYNC_BASE}/vcfsa/$1
+  export DBPS_HOME=${REALSYNC_BASE}/dbps/$1
+  VERIFY_PORT=`grep -w "${DB_NAME}" ${REALSYNC_BASE}/config.srv | awk '{print $6}'`
+  
+ if [ ! $# -lt 2 ]
+ then
+  for NAME in $*
+  do
+    if [ $NAME != $1 ]
+    then
+        USER_NAME=`echo $NAME | awk -F. '{print $1}'`
+       TABLE_NAME=`echo $NAME | awk -F. '{print $2}'`
+       cd ${REALSYNC_BASE}/bin/$1
+       if [ -z $TABLE_NAME ]
+       then
+          nohup ./xexp ${SOURCE_DB_USER}/${SOURCE_DB_PSWD} -owner ${USER_NAME} -check -to_db ${TGT_IP}:${VERIFY_PORT}:${TARGET_DB_USER}/${TARGET_DB_PSWD} >> ${REALSYNC_BASE}/log/$1/log.verify 2>&1 &
+          echo $USER_NAME
+       else
+          nohup ./xexp ${SOURCE_DB_USER}/${SOURCE_DB_PSWD} -tables ${USER_NAME}.${TABLE_NAME} -check -to_db ${TGT_IP}:${VERIFY_PORT}:${TARGET_DB_USER}/${TARGET_DB_PSWD} >> ${REALSYNC_BASE}/log/$1/log.verify 2>&1 &
+          echo $USER_NAME"."$TABLE_NAME
+       fi
+    fi
+   done
+ else
+   if [ ! -f ${REALSYNC_BASE}/dbps/$1/config/verify.sql ]
+   then
+       real_number=`sed -n "/real_where/=" $REALSYNC_BASE/dbps/$1/config/mapping.ini`
+       let real_number=real_number+1
+       full_number=`sed -n "/full_where/=" $REALSYNC_BASE/dbps/$1/config/mapping.ini`
+       let full_number=full_number-1
+       sed -n ${real_number},${full_number}p $REALSYNC_BASE/dbps/$1/config/mapping.ini > $REALSYNC_BASE/dbps/$1/config/verify.sql
+   fi
+   cd ${REALSYNC_BASE}/bin/$1
+   nohup ./xexp ${SOURCE_DB_USER}/${SOURCE_DB_PSWD} -exp_where_file $REALSYNC_BASE/dbps/$1/config/verify.sql -check -to_db ${TGT_IP}:${VERIFY_PORT}:${TARGET_DB_USER}/${TARGET_DB_PSWD} >> ${REALSYNC_BASE}/log/$1/log.verify 2>&1 &
+ fi
+
+}
+
+if [ $# -lt 1 ]
+then
+  Usage_tgt
+  echo ""
+  Usage_src
+  exit
+fi
+
+DB_NAME=$1
+
+if [ "${DB_NAME}" != "all" ]
+then
+  SYSTEM_ROLE=`grep -w "${DB_NAME}" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+  VERIFY_PORT=`grep -w "${DB_NAME}" ${REALSYNC_BASE}/config.srv | awk '{print $6}'`
+  #let VERIFY_PORT=VERIFY_PORT+3
+ 
+  if [ "${SYSTEM_ROLE}" = "TGT" ]
+  then
+      if [ $# -ne 1 ]
+      then
+         Usage_tgt
+         exit
+      fi
+      pid=`ps -ef | grep vagentd | grep ${VERIFY_PORT} | grep -v grep | awk '{print $2}'`
+      if [ -z "$pid" ]
+      then
+          cd ${REALSYNC_BASE}/bin/${DB_NAME}
+          verify_tgt ${DB_NAME}  ${VERIFY_PORT}
+          echo "Verify Agent with port ${VERIFY_PORT} Started."
+          ps -ef | grep vagentd  | grep -w "${DB_NAME}" | grep ${VERIFY_PORT}
+          ps -ef | grep loader   | grep -w "${DB_NAME}" | grep onlycheck
+      else
+          echo "INFORMANTION: another verify agent with port ${VERIFY_PORT} is running."
+      fi
+  else
+     if [ "${SYSTEM_ROLE}" = "SRC" ]
+     then
+         if [ $# -lt 1 ]
+         then
+            Usage_src
+            exit
+         fi
+         pid=`ps -ef | grep vagentd | grep ${VERIFY_PORT} | grep -v grep | awk '{print $2}'`
+         if [ -z "$pid" ]
+         then
+             cd ${REALSYNC_BASE}/bin/${DB_NAME}
+             verify_src $*
+             echo "Verify Started"
+             ps -ef | grep xexp | grep check |grep -w "${DB_NAME}"
+         else
+             echo "INFORMANTION: another verify agent with port ${VERIFY_PORT} is running."
+         fi
+     fi
+  fi
+  
+else
+  for i in `cat ${REALSYNC_BASE}/config.srv |grep -v "#" | awk '{print $1}'`
+  do
+    SYSTEM_ROLE=`grep -w "$i" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+    VERIFY_PORT=`grep -w "$i" ${REALSYNC_BASE}/config.srv | awk '{print $6}'`
+    #let VERIFY_PORT=VERIFY_PORT+3
+    if [ "${SYSTEM_ROLE}" = "TGT" ]
+    then
+        if [ $# -ne 1 ]
+        then
+           Usage_tgt
+           exit
+        fi
+        pid=`ps -ef | grep vagentd | grep ${VERIFY_PORT} | grep -v grep | awk '{print $2}'`
+        if [ -z "$pid" ]
+        then
+            cd ${REALSYNC_BASE}/bin/$i
+            verify_tgt $i  ${VERIFY_PORT}
+            echo "Verify Agent with port ${VERIFY_PORT} Started."
+            ps -ef | grep vagentd  | grep -w "$i" | grep ${VERIFY_PORT}
+            ps -ef | grep loader   | grep -w "$i" | grep onlycheck
+        else
+            echo "INFORMANTION: another verify agent with port ${VERIFY_PORT} is running."
+        fi
+    else
+       if [ "${SYSTEM_ROLE}" = "SRC" ]
+       then
+           if [ $# -lt 1 ]
+           then
+              Usage_src
+              exit
+           fi
+           if [ -z "$pid" ]
+           then
+               cd ${REALSYNC_BASE}/bin/$i
+               verify_src $*
+               echo "Verify Started"
+               ps -ef | grep xexp | grep check |grep -w "$i"
+           else
+             echo "INFORMANTION: another verify agent with port ${VERIFY_PORT} is running."
+           fi
+       fi
+    fi
+  done
+fi
+exit

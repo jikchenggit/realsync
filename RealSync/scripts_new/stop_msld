@@ -1,0 +1,68 @@
+#!/bin/ksh
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+  cd ..
+  REALSYNC_BASE=`pwd`
+fi
+
+Usage()
+{
+  echo "    ************************************************************************************"
+  echo "    USAGE: stop_msld SERVICE_NAME "
+  echo "           SERVICE_NAME : please refer to ${REALSYNC_BASE}/config.srv"
+  echo "                                          "
+  echo "       SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                         $i"
+  done 
+  echo "                         all (stop all)"
+  echo "    ************************************************************************************"
+  exit
+}
+
+if [ $# -lt 1 ]
+then
+  Usage
+fi
+
+DB_NAME="$1"
+
+SERVICENAME=`grep -w "$DB_NAME" ${REALSYNC_BASE}/config.srv`
+if [ -z "$SERVICENAME" -a "$DB_NAME" != "all" ]
+then
+  echo "Warning: SERVICE_NAME $DB_NAME not found in ${REALSYNC_BASE}/config.srv."
+  echo "SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                  $i"
+  done
+  echo "                  all (stop all)"
+  exit
+fi
+
+stop_msld()
+{
+  pid=`ps -ef |grep -w $1 |grep -w msld|grep -v grep|awk '{print $2}'`
+  if [ ! -z "$pid" ]
+  then
+      for id in $pid
+      do
+          kill -9 $id
+      done
+      echo "Parallel msld Stopped!($1)"
+  fi
+}
+
+
+if [ "$DB_NAME" != "all" ]
+then
+    stop_msld $1
+else
+    for k in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+    do
+      stop_msld $k
+    done
+fi
+

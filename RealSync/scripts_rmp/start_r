@@ -1,0 +1,119 @@
+#!/bin/ksh
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+  cd ..
+  REALSYNC_BASE=`pwd`
+fi
+
+if [ -d "$ORACLE_HOME/lib32" ]
+then
+  export LD_LIBRARY_PATH=$ORACLE_HOME/lib32
+  export LIBPATH=$ORACLE_HOME/lib32
+  export SHLIB_PATH=$ORACLE_HOME/lib32
+else
+  export LD_LIBRARY_PATH=$ORACLE_HOME/lib
+  export LIBPATH=$ORACLE_HOME/lib
+  export SHLIB_PATH=$ORACLE_HOME/lib
+fi
+
+Usage()
+{
+  echo "    ************************************************************************************"
+  echo "    USAGE: start_r SERVICE_NAME "
+  echo "           SERVICE_NAME : please refer to ${REALSYNC_BASE}/config.srv"
+  echo "                                          "
+  echo "       SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                         $i"
+  done 
+  echo "                         all (start_r all)"
+  echo "    ************************************************************************************"
+  exit
+}
+
+if [ $# -lt 1 -a -z "$SERVICE_NAME" ]
+then
+  Usage
+fi
+
+DB_NAME=""
+if [ ! -z "$SERVICE_NAME" ]
+then
+    DB_NAME=$SERVICE_NAME
+else
+    DB_NAME=$1
+fi
+
+SERVICENAME=`grep -w "$DB_NAME" ${REALSYNC_BASE}/config.srv`
+if [ -z "$SERVICENAME" -a "$DB_NAME" != "all" ]        
+then
+  echo "Warning: SERVICE_NAME $DB_NAME not found in ${REALSYNC_BASE}/config.srv."
+  echo "SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                  $i"
+  done
+  echo "                  all (start_r all)"
+  exit
+fi
+
+start_r()
+{
+  export VCFS_HOME=${REALSYNC_BASE}/vcfsa/$1
+  export XLDR_HOME=${REALSYNC_BASE}/xldr/$1
+  export DBPS_HOME=${REALSYNC_BASE}/dbps/$1
+#  nohup ${REALSYNC_BASE}/bin/$1/loader -r -qno 0 >> ${REALSYNC_BASE}/log/$1/log.r0 2>&1 &
+  r_parallel=`cat ${REALSYNC_BASE}/config/$1/config.dsg |grep LOADER_R_PARALLEL |awk -F= '{print $2}'`
+  if [ -z "${r_parallel}" ]
+  then
+      r_parallel=1
+  fi
+  count=0
+  while [ ${count} -lt ${r_parallel} ]
+  do
+    nohup ${REALSYNC_BASE}/bin/$1/loader -r -qno ${count} >> ${REALSYNC_BASE}/log/$1/log.r${count} 2>&1 &
+    let count=count+1
+  done
+}
+
+if [ "${DB_NAME}" != "all" ]
+then
+   SYSTEM_ROLE=`grep -w "$DB_NAME" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+   if [ "${SYSTEM_ROLE}" = "TGT" ]
+   then
+      pid=`ps -ef | grep "loader -r" | grep "$DB_NAME/" | grep -v grep | awk '{print $2}'`
+      if [ -z "$pid" ]
+      then
+          cd ${REALSYNC_BASE}/bin/$DB_NAME
+          start_r $DB_NAME
+          echo "Loader -r with $DB_NAME Started."
+          ps -ef | grep "loader -r" | grep -w "$DB_NAME"
+      else
+          echo "INFORMANTION: another loader -r with $DB_NAME is running."
+      fi
+    else
+       echo "Please start loader -r in target host"
+    fi
+else
+   for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+   do
+     SYSTEM_ROLE=`grep -w "$i" ${REALSYNC_BASE}/config.srv | awk '{print $4}'`
+     if [ "${SYSTEM_ROLE}" = "TGT" ]
+     then
+       pid=`ps -ef | grep "loader -r" | grep -w "$i" | grep -v grep | awk '{print $2}'`
+       if [ -z "$pid" ]
+       then
+          cd ${REALSYNC_BASE}/bin/$i
+          start_r $i
+          echo "Loader -r with $i Started."
+          ps -ef | grep "loader -r" | grep -w "$i"
+       else
+          echo "INFORMANTION: another loader -r with $i is running."
+       fi
+     else
+       echo "Please start loader -r in target host"
+     fi
+   done
+fi

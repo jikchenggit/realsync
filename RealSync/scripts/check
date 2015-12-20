@@ -1,0 +1,62 @@
+#!/bin/ksh
+
+if [ -z "${REALSYNC_BASE}" ]
+then
+  cd ..
+  REALSYNC_BASE=`pwd`
+fi
+
+Usage()
+{
+  echo "    ************************************************************************************"
+  echo "    USAGE: check SERVICE_NAME"
+  echo "           SERVICE_NAME : please refer to $REALSYNC_BASE/config.srv or all"
+  echo "                                          "
+  echo "       SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                         $i"
+  done 
+  echo "                         all (check all)"
+  echo "    ************************************************************************************"
+  exit
+}
+
+
+if [ $# -lt 1 -a -z "$SERVICE_NAME" ]
+then
+  Usage
+fi
+
+DB_NAME=""
+if [ ! -z "$SERVICE_NAME" ]
+then
+    DB_NAME=$SERVICE_NAME
+else
+    DB_NAME=$1
+fi
+
+SERVICENAME=`grep -w "$DB_NAME" ${REALSYNC_BASE}/config.srv`
+if [ -z "$SERVICENAME" -a "$DB_NAME" != "all" -a "$DB_NAME" != "ALL" ]
+then
+  echo "Warning: SERVICE_NAME $DB_NAME not found in ${REALSYNC_BASE}/config.srv."
+  echo "SERVICE_NAME LIST:"
+  for i in `cat ${REALSYNC_BASE}/config.srv | grep -v "#" | awk '{print $1}'`
+  do
+  echo "                  $i"
+  done
+  echo "                  all (check all)"
+  exit
+fi
+
+SVC_NAME=$DB_NAME
+
+if [ $SVC_NAME != "all" -a $SVC_NAME != "ALL" ]
+then
+    ps -ef |grep -v grep |grep -v "./check" |grep -w "$SVC_NAME"
+else
+    for i in `cat $REALSYNC_BASE/config.srv |grep -v "#" |awk '{print $1}'`
+    do
+      ps -ef |grep -v grep |grep -v "./check" |grep -w "$i"
+    done
+fi
