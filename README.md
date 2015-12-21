@@ -1,2 +1,2 @@
 # realsync
-DSG sync soft install SHELL 
+DSG sync soft install KSHELL 
