@@ -20,6 +20,7 @@ echo "          *                                 *"
 echo "          *     REALSYNC PRODUCT INSTALL    *"
 echo "           ********************************* "
 echo "                                             "
+echo "  this is aming's autor "
 
 while true
 do
@@ -40,7 +41,7 @@ do
       	read REALSYNC_QUE?"The dir you want RealSync Software to install is [$INSTALL_PATH]?(Y/N):"
       done
   fi
-
+##################################mkdir realsync_dir#############################################################
   if [ "$REALSYNC_QUE" = "Y" -o "$REALSYNC_QUE" = "y" ]
   then
       if [ ! -d "$REALSYNC_DIR" ]
@@ -79,6 +80,10 @@ do
   fi
 done
 
+##################################mkdir realsync_dir#############################################################
+
+
+##################################profile_config#############################################################
 REALSYNC_BASE="$INSTALL_PATH"
 if [ -f "$HOME/.bash_profile" ]
 then
@@ -92,11 +97,11 @@ then
        echo "alias 'l=ls -al';" >> $HOME/.bash_profile
        echo "export PS1=[\`hostname\`]\":\"'[\$PWD]$ ';" >> $HOME/.bash_profile
        echo "export REALSYNC_BASE=$REALSYNC_BASE;" >> $HOME/.bash_profile
-###################config elib################################################################################
+	###################config elib################################################################################
        echo "export LD_LIBRARY_PATH=$REALSYNC_BASE/elib:$ORACLE_HOME/lib:$D_LIBRARY_PATH;" >> $HOME/.bash_profile
        echo "export LIBPATH=$REALSYNC_BASE/elib:$ORACLE_HOME/lib:$LIBPATH;" >> $HOME/.bash_profile
        echo "export SHLIB_PATH=$REALSYNC_BASE/elib:$ORACLE_HOME/lib:$SHLIB_PATH;" >> $HOME/.bash_profile
-###################config elib################################################################################
+	###################config elib################################################################################
        echo "cd \${REALSYNC_BASE};" >> $HOME/.bash_profile
        echo "alias 'cdl=cd \${REALSYNC_BASE}/log';" >> $HOME/.bash_profile
        echo "alias 'cds=cd \${REALSYNC_BASE}/scripts';" >> $HOME/.bash_profile
@@ -109,6 +114,7 @@ then
        echo "alias 'cdx=cd \${REALSYNC_BASE}/xldr';" >> $HOME/.bash_profile
        source $HOME/.bash_profile
    fi
+##################################UNIX_profile_config####################################
 else
    echo "export REALSYNC_BASE=$REALSYNC_BASE"
    REALSYNC_MARK=`grep REALSYNC_BASE $HOME/.profile |grep -v "#"`
@@ -120,11 +126,11 @@ else
        echo "alias 'l=ls -al';" >> $HOME/.profile
        echo "export PS1=[\`hostname\`]\":\"'[\$PWD]$ ';" >> $HOME/.profile
        echo "export REALSYNC_BASE=$REALSYNC_BASE;" >> $HOME/.profile
-###################config elib#######################################################################################
+	###################config elib#######################################################################################
        echo "export LD_LIBRARY_PATH=$REALSYNC_BASE/elib:$ORACLE_HOME/lib:$D_LIBRARY_PATH;" >> $HOME/.bash_profile
        echo "export LIBPATH=$REALSYNC_BASE/elib:$ORACLE_HOME/lib:$LIBPATH;" >> $HOME/.bash_profile
        echo "export SHLIB_PATH=$REALSYNC_BASE/elib:$ORACLE_HOME/lib:$SHLIB_PATH;" >> $HOME/.bash_profile
-###################config elib#######################################################################################
+	###################config elib#######################################################################################
        echo "cd \${REALSYNC_BASE};" >> $HOME/.profile
        echo "alias 'cdl=cd \${REALSYNC_BASE}/log';" >> $HOME/.profile
        echo "alias 'cds=cd \${REALSYNC_BASE}/scripts';" >> $HOME/.profile
@@ -138,6 +144,8 @@ else
        . $HOME/.profile
    fi 
 fi
+
+##################################UNIX_profile_config####################################
 export REALSYNC_BASE
 
 echo "  "
@@ -147,19 +155,20 @@ do
   echo    "     Please choice your Operation System:"
   echo    "     1 AIX4.3"
   echo    "     2 AIX5L"
-  echo    "     3 HP11.11"
-  echo    "     4 HP11.23"
-  echo    "     5 HP11.31"
-  echo    "     6 Linux"
-  echo    "     7 SunOS5.8"
-  echo    "     8 SunOS5.10"
+  echo    "	3 AIX6.1"
+  echo    "     4 HP11.11"
+  echo    "     5 HP11.23"
+  echo    "     6 HP11.31"
+  echo    "     7 Linux"
+  echo    "     8 SunOS5.8"
+  echo    "     9 SunOS5.10"
   read CHOOSE_SYSTEM?"     please input your choice (1/2/3/4/5/6/7/8):"
   
   while [ "$CHOOSE_SYSTEM" != "1" -a "$CHOOSE_SYSTEM" != "2" -a "$CHOOSE_SYSTEM" != "3" -a \
           "$CHOOSE_SYSTEM" != "4" -a "$CHOOSE_SYSTEM" != "5" -a "$CHOOSE_SYSTEM" != "6" -a \
-          "$CHOOSE_SYSTEM" != "7" -a "$CHOOSE_SYSTEM" != "8" ]
+          "$CHOOSE_SYSTEM" != "7" -a "$CHOOSE_SYSTEM" != "8" -a "$CHOOSE_SYSTEM" != "9" ]
   do
-    read CHOOSE_SYSTEM?"     please input your choice (1/2/3/4/5/6/7):"
+    read CHOOSE_SYSTEM?"     please input your choice (1/2/3/4/5/6/7/8/9):"
   done
   
   echo    "                                        "
@@ -178,12 +187,13 @@ do
   case "$CHOOSE_SYSTEM" in
   1)OS="AIX4.3";;
   2)OS="AIX5L";;
-  3)OS="HP11.11";;
-  4)OS="HP11.23";;
-  5)OS="HP11.31";;
-  6)OS="Linux";;
-  7)OS="SunOS5.8";;
-  8)OS="SunOS5.10";;
+  3)OS="AIX6";;
+  4)OS="HP11.11";;
+  5)OS="HP11.23";;
+  6)OS="HP11.31";;
+  7)OS="Linux";;
+  8)OS="SunOS5.8";;
+  9)OS="SunOS5.10";;
   esac
   
   case "$ORACLE_VERSION" in
@@ -842,7 +852,9 @@ exit
 EOF
 
 #echo "set ds 1 -ctf ${SOURCE_CONTROL_FILE} -itvl 5 -state start" > ${REALSYNC_BASE}/config/$1/dsdt.vm
-echo "set ds 1 -itvl 5 -state start" > ${REALSYNC_BASE}/config/$1/dsdt.vm
+echo "connnect :$S_PORT" >dsdt.vmdsdt.vm
+echo "user root/dbps" >> dsdt.vm
+echo "set ds 1 -itvl 5 -state start" >> ${REALSYNC_BASE}/config/$1/dsdt.vm
 echo "set dt 1.1 -tgt db 2 -xf1 y -state start" >> ${REALSYNC_BASE}/config/$1/dsdt.vm
 echo "#FOR EXAMPLE:" > ${REALSYNC_BASE}/config/$1/config.vm
 echo "#set dm 1.1 BILL.TABLE SAM.TABLE -sync ftciq -rule r" >> ${REALSYNC_BASE}/config/$1/config.vm
@@ -959,7 +971,7 @@ software_install()
   cd $REALSYNC_BASE/elib
   unzip *.zip
   rm -rf *.zip
-  mv instantclient_11_2*/* .
+  mv instantclient*/* .
   rm -rf instantclient-basic-linux*
   cp libnnz11.so libnnz.so
   cp libclntsh.so.11.1 libclntsh.so

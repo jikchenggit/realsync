@@ -126,6 +126,9 @@ else
   
   if [ "${SYSTEM_ROLE}" = "SRC" ]
   then
+      cp ${REALSYNC_BASE}/mass/mapping_sample.ini ${REALSYNC_BASE}/config/$1/mapping.ini
+      cp ${REALSYNC_BASE}/config/$1/dsdt.vm ${REALSYNC_BASE}/bin/$1/
+      cp ${REALSYNC_BASE}/config/$1/config.vm ${REALSYNC_BASE}/bin/$1/
       cp ${REALSYNC_BASE}/mass/config.dsg.src ${REALSYNC_BASE}/config/$1/config.dsg
       cp ${REALSYNC_BASE}/mass/ddl.ini ${REALSYNC_BASE}/config/$1/
   fi
