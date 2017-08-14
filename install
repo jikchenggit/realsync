@@ -1021,7 +1021,7 @@ then
      cd $REALSYNC_BASE/scripts
      ./start_vagentd $S_NAME
      sleep 2
-     register_system $S_NAME
+     #register_system $S_NAME
   fi
 fi
 
