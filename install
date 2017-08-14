@@ -1030,6 +1030,6 @@ then
   echo " "
   echo "Starting Target ServiceName $S_NAME Process......" 
   cd $REALSYNC_BASE/scripts
-  ./start_vagentd $S_NAME
+  #./start_vagentd $S_NAME
   sleep 2
 fi
